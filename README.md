@@ -24,6 +24,7 @@ app/
 docs/
 tests/
 prd.md
+requirements.txt
 ```
 
 ## Prasyarat
