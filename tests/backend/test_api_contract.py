@@ -26,7 +26,26 @@ def test_screener_returns_data_after_run_daily(monkeypatch):
     ])
     cli_main()
 
-    res = client.get("/api/v1/screener")
+    res = client.get("/api/v1/screener?screen_date=2026-05-06")
     assert res.status_code == 200
     body = res.json()
     assert len(body["data"]) > 0
+
+
+def test_meta_latest_screen_date_exists():
+    res = client.get("/api/v1/meta/latest-screen-date")
+    assert res.status_code == 200
+    body = res.json()
+    assert body["data"]["latest_screen_date"] is not None
+
+
+def test_ticker_detail_and_history_exist():
+    detail = client.get("/api/v1/screener/BBCA.JK?screen_date=2026-05-06")
+    assert detail.status_code == 200
+    detail_body = detail.json()
+    assert detail_body["data"]["ticker"] == "BBCA.JK"
+
+    history = client.get("/api/v1/screener/BBCA.JK/history?start=2026-05-01&end=2026-05-31&preset=balanced")
+    assert history.status_code == 200
+    history_body = history.json()
+    assert isinstance(history_body["data"], list)

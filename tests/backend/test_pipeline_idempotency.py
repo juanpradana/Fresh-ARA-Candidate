@@ -10,6 +10,22 @@ def test_should_skip_when_job_already_successful():
 
 def test_run_daily_writes_screener_result(monkeypatch):
     init_db()
+
+    def fake_history(_: str, __: str) -> list[dict]:
+        return [
+            {
+                "ticker": "BBCA.JK",
+                "open": 9000.0,
+                "high": 9100.0,
+                "low": 8950.0,
+                "close": 9050.0,
+                "volume": 1000000.0,
+                "prev_volume": 980000.0,
+                "prev_close": 9000.0,
+            }
+        ]
+
+    monkeypatch.setattr("app.backend.services.market_data.service.fetch_daily_market_data", fake_history)
     monkeypatch.setattr("sys.argv", [
         "cli",
         "run-daily",
