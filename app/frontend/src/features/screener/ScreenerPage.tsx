@@ -52,6 +52,14 @@ export function ScreenerPage() {
   return (
     <div>
       <h1>Fresh ARA Screener</h1>
+      <section>
+        <h2>Data Freshness</h2>
+        <p>Latest screen date: {filters.screenDate}</p>
+      </section>
+      <section>
+        <h2>Disclaimer</h2>
+        <p>Sinyal bersifat probabilistik, bukan jaminan hasil.</p>
+      </section>
       <div>
         <label htmlFor="preset">Preset</label>
         <select

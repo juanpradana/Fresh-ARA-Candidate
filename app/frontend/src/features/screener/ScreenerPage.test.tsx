@@ -110,6 +110,24 @@ test("loads default preset and screen date from metadata", async () => {
   expect(screen.getByDisplayValue("2026-05-07")).toBeInTheDocument();
 });
 
+test("shows data freshness indicator", async () => {
+  mockApiResponses();
+
+  render(<ScreenerPage />);
+
+  expect(await screen.findByText("Data Freshness")).toBeInTheDocument();
+  expect(screen.getByText("Latest screen date: 2026-05-07")).toBeInTheDocument();
+});
+
+test("shows probabilistic disclaimer", async () => {
+  mockApiResponses();
+
+  render(<ScreenerPage />);
+
+  expect(await screen.findByText("Disclaimer")).toBeInTheDocument();
+  expect(screen.getByText("Sinyal bersifat probabilistik, bukan jaminan hasil.")).toBeInTheDocument();
+});
+
 test("applies selected filters to api calls and export link", async () => {
   const calls: string[] = [];
 
