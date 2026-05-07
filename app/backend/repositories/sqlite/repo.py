@@ -286,3 +286,25 @@ def finish_job_run_failed(run_date: str, finished_at: str, error_message: str) -
         session.commit()
     finally:
         session.close()
+
+
+def get_recent_job_runs(limit: int = 10) -> list[dict]:
+    session = SessionLocal()
+    try:
+        rows = session.execute(
+            select(JobRun)
+            .order_by(JobRun.started_at.desc())
+            .limit(limit)
+        ).scalars().all()
+        return [
+            {
+                "run_date": row.run_date,
+                "status": row.status,
+                "error_message": row.error_message,
+                "started_at": row.started_at,
+                "finished_at": row.finished_at,
+            }
+            for row in rows
+        ]
+    finally:
+        session.close()

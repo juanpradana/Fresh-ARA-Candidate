@@ -83,3 +83,24 @@ def test_export_screener_csv_returns_file_content():
     assert "text/csv" in res.headers["content-type"]
     assert "ticker" in res.text
     assert "screen_date" in res.text
+
+
+def test_meta_job_runs_returns_recent_runs():
+    monkeypatch_argv = [
+        "cli",
+        "run-daily",
+        "--date",
+        "2026-05-07",
+    ]
+    import sys
+
+    sys.argv = monkeypatch_argv
+    cli_main()
+
+    res = client.get("/api/v1/meta/job-runs?limit=5")
+    assert res.status_code == 200
+    body = res.json()
+    assert isinstance(body["data"], list)
+    assert len(body["data"]) >= 1
+    assert "run_date" in body["data"][0]
+    assert "status" in body["data"][0]

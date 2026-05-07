@@ -9,6 +9,7 @@ from app.backend.repositories.sqlite.repo import (
     get_default_presets,
     get_distribution,
     get_latest_screen_date,
+    get_recent_job_runs,
     get_screener_csv_rows,
     get_screener_detail,
     get_screener_history,
@@ -36,6 +37,20 @@ def presets() -> dict:
     return {
         "data": get_default_presets(),
         "meta": {},
+        "error": None,
+    }
+
+
+@router.get("/meta/job-runs")
+def meta_job_runs(limit: int = Query(default=10, ge=1, le=100)) -> dict:
+    init_db()
+    rows = get_recent_job_runs(limit=limit)
+    return {
+        "data": rows,
+        "meta": {
+            "count": len(rows),
+            "limit": limit,
+        },
         "error": None,
     }
 
