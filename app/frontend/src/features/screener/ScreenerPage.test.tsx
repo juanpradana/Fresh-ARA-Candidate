@@ -6,10 +6,26 @@ beforeEach(() => {
   vi.restoreAllMocks();
 });
 
+function mockApiResponses() {
+  vi.spyOn(globalThis, "fetch").mockImplementation(async (input: RequestInfo | URL) => {
+    const url = String(input);
+
+    if (url.includes("/api/v1/analytics/backtest")) {
+      return {
+        json: async () => ({
+          data: { win_rate: 0.5, avg_score: 0.81, total: 2 },
+        }),
+      } as Response;
+    }
+
+    return {
+      json: async () => ({ data: [{ ticker: "BBRI.JK" }, { ticker: "BBCA.JK" }] }),
+    } as Response;
+  });
+}
+
 test("shows screener title", async () => {
-  vi.spyOn(globalThis, "fetch").mockResolvedValue({
-    json: async () => ({ data: [{ ticker: "BBRI.JK" }] })
-  } as Response);
+  mockApiResponses();
 
   render(<ScreenerPage />);
   expect(screen.getByText("Fresh ARA Screener")).toBeInTheDocument();
@@ -17,10 +33,28 @@ test("shows screener title", async () => {
 });
 
 test("renders rows from api", async () => {
-  vi.spyOn(globalThis, "fetch").mockResolvedValue({
-    json: async () => ({ data: [{ ticker: "BBCA.JK" }] })
-  } as Response);
+  mockApiResponses();
 
   render(<ScreenerPage />);
   expect(await screen.findByText("BBCA.JK")).toBeInTheDocument();
+});
+
+test("shows backtest summary", async () => {
+  mockApiResponses();
+
+  render(<ScreenerPage />);
+
+  expect(await screen.findByText("Backtest Summary")).toBeInTheDocument();
+  expect(screen.getByText("Win rate: 50.00%")).toBeInTheDocument();
+  expect(screen.getByText("Average score: 0.81")).toBeInTheDocument();
+  expect(screen.getByText("Total samples: 2")).toBeInTheDocument();
+});
+
+test("shows export csv link", async () => {
+  mockApiResponses();
+
+  render(<ScreenerPage />);
+
+  const link = await screen.findByRole("link", { name: "Export CSV" });
+  expect(link).toHaveAttribute("href", "/api/v1/export/screener.csv?preset=balanced");
 });
