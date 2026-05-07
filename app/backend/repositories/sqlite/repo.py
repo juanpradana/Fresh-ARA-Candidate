@@ -3,7 +3,7 @@ from sqlalchemy import and_, func, select
 from statistics import mean
 
 from app.backend.core.db import SessionLocal
-from app.backend.repositories.sqlite.models import ScreeningResult, Ticker
+from app.backend.repositories.sqlite.models import JobRun, ScreeningResult, Ticker
 
 
 def upsert_screening_result(
@@ -230,3 +230,59 @@ def get_backtest_summary(start: str, end: str, preset: str) -> dict:
 
 def get_screener_csv_rows(screen_date: str | None, preset: str) -> list[dict]:
     return get_screener_rows(screen_date=screen_date, preset=preset)
+
+
+def try_start_job_run(run_date: str, started_at: str) -> bool:
+    session = SessionLocal()
+    try:
+        existing = session.execute(
+            select(JobRun).where(JobRun.run_date == run_date)
+        ).scalar_one_or_none()
+        if existing is not None:
+            return False
+
+        session.add(
+            JobRun(
+                run_date=run_date,
+                status="running",
+                error_message=None,
+                started_at=started_at,
+                finished_at=None,
+            )
+        )
+        session.commit()
+        return True
+    finally:
+        session.close()
+
+
+def finish_job_run_success(run_date: str, finished_at: str) -> None:
+    session = SessionLocal()
+    try:
+        row = session.execute(
+            select(JobRun).where(JobRun.run_date == run_date)
+        ).scalar_one_or_none()
+        if row is None:
+            return
+        row.status = "success"
+        row.error_message = None
+        row.finished_at = finished_at
+        session.commit()
+    finally:
+        session.close()
+
+
+def finish_job_run_failed(run_date: str, finished_at: str, error_message: str) -> None:
+    session = SessionLocal()
+    try:
+        row = session.execute(
+            select(JobRun).where(JobRun.run_date == run_date)
+        ).scalar_one_or_none()
+        if row is None:
+            return
+        row.status = "failed"
+        row.error_message = error_message
+        row.finished_at = finished_at
+        session.commit()
+    finally:
+        session.close()

@@ -22,3 +22,14 @@ class ScreeningResult(Base):
     rank_num = Column(Integer, nullable=False)
     pass_count = Column(Integer, nullable=False)
     category = Column(Text, nullable=False)
+
+
+class JobRun(Base):
+    __tablename__ = "job_runs"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    run_date = Column(Text, unique=True, nullable=False)
+    status = Column(Text, nullable=False)
+    error_message = Column(Text, nullable=True)
+    started_at = Column(Text, nullable=False)
+    finished_at = Column(Text, nullable=True)

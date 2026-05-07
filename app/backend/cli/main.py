@@ -2,6 +2,7 @@ import argparse
 
 from app.backend.core.db import init_db
 from app.backend.repositories.sqlite.repo import upsert_screening_result
+from app.backend.services.daily_job.service import run_daily_job
 from app.backend.services.feature_engineering.service import compute_features
 from app.backend.services.market_data.service import fetch_daily_market_data
 from app.backend.services.scoring.service import score_candidate
@@ -45,8 +46,7 @@ def main() -> None:
     args = parser.parse_args()
 
     if args.command == "run-daily" and args.date:
-        init_db()
-        _run_daily(args.date)
+        run_daily_job(args.date)
         return
 
     print(args.command, args.date)
