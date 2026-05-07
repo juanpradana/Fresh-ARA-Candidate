@@ -144,3 +144,59 @@ def get_screener_history(ticker: str, start: str, end: str, preset: str = "balan
         ]
     finally:
         session.close()
+
+
+def get_default_presets() -> list[dict]:
+    return [
+        {
+            "preset_name": "conservative",
+            "vol_ratio_min": 0.75,
+            "vol_ratio_max": 1.25,
+            "range_pct_min": 0.50,
+            "range_pct_max": 0.90,
+            "price_action_max": 0.50,
+        },
+        {
+            "preset_name": "balanced",
+            "vol_ratio_min": 0.75,
+            "vol_ratio_max": 1.25,
+            "range_pct_min": 0.50,
+            "range_pct_max": 1.00,
+            "price_action_max": 0.70,
+        },
+        {
+            "preset_name": "aggressive",
+            "vol_ratio_min": 0.70,
+            "vol_ratio_max": 1.30,
+            "range_pct_min": 0.50,
+            "range_pct_max": 1.20,
+            "price_action_max": 0.80,
+        },
+    ]
+
+
+def get_distribution(screen_date: str, preset: str) -> dict:
+    session = SessionLocal()
+    try:
+        rows = session.execute(
+            select(ScreeningResult).where(
+                ScreeningResult.screen_date == screen_date,
+                ScreeningResult.preset_name == preset,
+            )
+        ).scalars().all()
+
+        by_category: dict[str, int] = {}
+        by_pass_count: dict[str, int] = {}
+
+        for row in rows:
+            by_category[row.category] = by_category.get(row.category, 0) + 1
+            key = str(row.pass_count)
+            by_pass_count[key] = by_pass_count.get(key, 0) + 1
+
+        return {
+            "by_category": by_category,
+            "by_pass_count": by_pass_count,
+            "total": len(rows),
+        }
+    finally:
+        session.close()

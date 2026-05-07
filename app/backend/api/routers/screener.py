@@ -2,6 +2,8 @@ from fastapi import APIRouter, Query
 
 from app.backend.core.db import init_db
 from app.backend.repositories.sqlite.repo import (
+    get_default_presets,
+    get_distribution,
     get_latest_screen_date,
     get_screener_detail,
     get_screener_history,
@@ -20,6 +22,31 @@ def latest_screen_date() -> dict:
             "latest_screen_date": latest,
         },
         "meta": {},
+        "error": None,
+    }
+
+
+@router.get("/meta/presets")
+def presets() -> dict:
+    return {
+        "data": get_default_presets(),
+        "meta": {},
+        "error": None,
+    }
+
+
+@router.get("/analytics/distribution")
+def analytics_distribution(
+    screen_date: str = Query(...),
+    preset: str = Query(default="balanced"),
+) -> dict:
+    init_db()
+    return {
+        "data": get_distribution(screen_date=screen_date, preset=preset),
+        "meta": {
+            "screen_date": screen_date,
+            "preset": preset,
+        },
         "error": None,
     }
 

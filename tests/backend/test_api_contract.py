@@ -49,3 +49,20 @@ def test_ticker_detail_and_history_exist():
     assert history.status_code == 200
     history_body = history.json()
     assert isinstance(history_body["data"], list)
+
+
+def test_meta_presets_returns_default_presets():
+    res = client.get("/api/v1/meta/presets")
+    assert res.status_code == 200
+    body = res.json()
+    presets = body["data"]
+    names = {preset["preset_name"] for preset in presets}
+    assert {"conservative", "balanced", "aggressive"}.issubset(names)
+
+
+def test_analytics_distribution_returns_summary():
+    res = client.get("/api/v1/analytics/distribution?screen_date=2026-05-06&preset=balanced")
+    assert res.status_code == 200
+    body = res.json()
+    assert "by_category" in body["data"]
+    assert "by_pass_count" in body["data"]
