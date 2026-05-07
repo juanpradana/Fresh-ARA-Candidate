@@ -1,5 +1,7 @@
 from sqlalchemy import and_, func, select
 
+from statistics import mean
+
 from app.backend.core.db import SessionLocal
 from app.backend.repositories.sqlite.models import ScreeningResult, Ticker
 
@@ -200,3 +202,31 @@ def get_distribution(screen_date: str, preset: str) -> dict:
         }
     finally:
         session.close()
+
+
+def get_backtest_summary(start: str, end: str, preset: str) -> dict:
+    session = SessionLocal()
+    try:
+        rows = session.execute(
+            select(ScreeningResult).where(
+                ScreeningResult.preset_name == preset,
+                ScreeningResult.screen_date >= start,
+                ScreeningResult.screen_date <= end,
+            )
+        ).scalars().all()
+
+        total = len(rows)
+        winners = sum(1 for row in rows if row.category == "ideal")
+        avg_score = mean([row.score for row in rows]) if rows else 0.0
+
+        return {
+            "win_rate": (winners / total) if total else 0.0,
+            "avg_score": avg_score,
+            "total": total,
+        }
+    finally:
+        session.close()
+
+
+def get_screener_csv_rows(screen_date: str | None, preset: str) -> list[dict]:
+    return get_screener_rows(screen_date=screen_date, preset=preset)

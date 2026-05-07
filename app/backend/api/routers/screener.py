@@ -1,10 +1,15 @@
-from fastapi import APIRouter, Query
+import csv
+from io import StringIO
+
+from fastapi import APIRouter, Query, Response
 
 from app.backend.core.db import init_db
 from app.backend.repositories.sqlite.repo import (
+    get_backtest_summary,
     get_default_presets,
     get_distribution,
     get_latest_screen_date,
+    get_screener_csv_rows,
     get_screener_detail,
     get_screener_history,
     get_screener_rows,
@@ -49,6 +54,41 @@ def analytics_distribution(
         },
         "error": None,
     }
+
+
+@router.get("/analytics/backtest")
+def analytics_backtest(
+    start: str = Query(...),
+    end: str = Query(...),
+    preset: str = Query(default="balanced"),
+) -> dict:
+    init_db()
+    return {
+        "data": get_backtest_summary(start=start, end=end, preset=preset),
+        "meta": {
+            "start": start,
+            "end": end,
+            "preset": preset,
+        },
+        "error": None,
+    }
+
+
+@router.get("/export/screener.csv")
+def export_screener_csv(
+    screen_date: str | None = Query(default=None),
+    preset: str = Query(default="balanced"),
+) -> Response:
+    init_db()
+    rows = get_screener_csv_rows(screen_date=screen_date, preset=preset)
+    output = StringIO()
+    writer = csv.DictWriter(
+        output,
+        fieldnames=["screen_date", "ticker", "score", "rank_num", "pass_count", "category"],
+    )
+    writer.writeheader()
+    writer.writerows(rows)
+    return Response(content=output.getvalue(), media_type="text/csv")
 
 
 @router.get("/screener")

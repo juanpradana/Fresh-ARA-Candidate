@@ -66,3 +66,20 @@ def test_analytics_distribution_returns_summary():
     body = res.json()
     assert "by_category" in body["data"]
     assert "by_pass_count" in body["data"]
+
+
+def test_analytics_backtest_returns_summary():
+    res = client.get("/api/v1/analytics/backtest?start=2026-05-01&end=2026-05-31&preset=balanced")
+    assert res.status_code == 200
+    body = res.json()
+    assert "win_rate" in body["data"]
+    assert "avg_score" in body["data"]
+    assert "total" in body["data"]
+
+
+def test_export_screener_csv_returns_file_content():
+    res = client.get("/api/v1/export/screener.csv?screen_date=2026-05-06&preset=balanced")
+    assert res.status_code == 200
+    assert "text/csv" in res.headers["content-type"]
+    assert "ticker" in res.text
+    assert "screen_date" in res.text
