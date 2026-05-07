@@ -18,6 +18,24 @@ function mockApiResponses() {
       } as Response;
     }
 
+    if (url.includes("/api/v1/meta/latest-screen-date")) {
+      return {
+        json: async () => ({ data: { latest_screen_date: "2026-05-07" } }),
+      } as Response;
+    }
+
+    if (url.includes("/api/v1/meta/presets")) {
+      return {
+        json: async () => ({
+          data: [
+            { preset_name: "conservative" },
+            { preset_name: "balanced" },
+            { preset_name: "aggressive" },
+          ],
+        }),
+      } as Response;
+    }
+
     if (url.includes("/api/v1/meta/job-runs")) {
       return {
         json: async () => ({
@@ -70,7 +88,7 @@ test("shows export csv link", async () => {
   render(<ScreenerPage />);
 
   const link = await screen.findByRole("link", { name: "Export CSV" });
-  expect(link).toHaveAttribute("href", "/api/v1/export/screener.csv?screen_date=2026-05-06&preset=balanced");
+  expect(link).toHaveAttribute("href", "/api/v1/export/screener.csv?screen_date=2026-05-07&preset=balanced");
 });
 
 test("shows latest daily job status", async () => {
@@ -83,12 +101,39 @@ test("shows latest daily job status", async () => {
   expect(screen.getByText("Status: success")).toBeInTheDocument();
 });
 
+test("loads default preset and screen date from metadata", async () => {
+  mockApiResponses();
+
+  render(<ScreenerPage />);
+
+  expect(await screen.findByDisplayValue("balanced")).toBeInTheDocument();
+  expect(screen.getByDisplayValue("2026-05-07")).toBeInTheDocument();
+});
+
 test("applies selected filters to api calls and export link", async () => {
   const calls: string[] = [];
 
   vi.spyOn(globalThis, "fetch").mockImplementation(async (input: RequestInfo | URL) => {
     const url = String(input);
     calls.push(url);
+
+    if (url.includes("/api/v1/meta/latest-screen-date")) {
+      return {
+        json: async () => ({ data: { latest_screen_date: "2026-05-07" } }),
+      } as Response;
+    }
+
+    if (url.includes("/api/v1/meta/presets")) {
+      return {
+        json: async () => ({
+          data: [
+            { preset_name: "conservative" },
+            { preset_name: "balanced" },
+            { preset_name: "aggressive" },
+          ],
+        }),
+      } as Response;
+    }
 
     if (url.includes("/api/v1/analytics/backtest")) {
       return {

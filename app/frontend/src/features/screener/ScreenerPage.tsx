@@ -1,11 +1,14 @@
 import { useEffect, useState } from "react";
 import {
   getBacktestSummary,
+  getLatestScreenDate,
+  getPresets,
   getRecentJobRuns,
   getScreener,
   getScreenerCsvExportUrl,
   type BacktestSummary,
   type JobRun,
+  type PresetMeta,
   type ScreenerFilters,
   type ScreenerRow,
 } from "../../shared/api/client";
@@ -14,9 +17,10 @@ export function ScreenerPage() {
   const [rows, setRows] = useState<ScreenerRow[]>([]);
   const [backtest, setBacktest] = useState<BacktestSummary | null>(null);
   const [latestRun, setLatestRun] = useState<JobRun | null>(null);
+  const [presets, setPresets] = useState<PresetMeta[]>([]);
   const [filters, setFilters] = useState<ScreenerFilters>({
-    screenDate: "2026-05-06",
-    preset: "balanced",
+    screenDate: "",
+    preset: "",
     start: "2026-05-01",
     end: "2026-05-31",
   });
@@ -28,7 +32,21 @@ export function ScreenerPage() {
   };
 
   useEffect(() => {
-    loadData(filters);
+    Promise.all([getLatestScreenDate(), getPresets()]).then(([latestDate, presetRows]) => {
+      const defaultPreset = presetRows.find((item) => item.preset_name === "balanced")?.preset_name
+        ?? presetRows[0]?.preset_name
+        ?? "balanced";
+      const defaultDate = latestDate ?? "2026-05-06";
+      const nextFilters = {
+        screenDate: defaultDate,
+        preset: defaultPreset,
+        start: "2026-05-01",
+        end: "2026-05-31",
+      };
+      setPresets(presetRows);
+      setFilters(nextFilters);
+      loadData(nextFilters);
+    });
   }, []);
 
   return (
@@ -41,9 +59,9 @@ export function ScreenerPage() {
           value={filters.preset}
           onChange={(event) => setFilters((prev) => ({ ...prev, preset: event.target.value }))}
         >
-          <option value="conservative">conservative</option>
-          <option value="balanced">balanced</option>
-          <option value="aggressive">aggressive</option>
+          {presets.map((preset) => (
+            <option key={preset.preset_name} value={preset.preset_name}>{preset.preset_name}</option>
+          ))}
         </select>
 
         <label htmlFor="screen-date">Screen Date</label>

@@ -19,6 +19,10 @@ export type ScreenerFilters = {
   end: string;
 };
 
+export type PresetMeta = {
+  preset_name: string;
+};
+
 export async function getScreener(filters: Pick<ScreenerFilters, "screenDate" | "preset">): Promise<ScreenerRow[]> {
   const params = new URLSearchParams({
     screen_date: filters.screenDate,
@@ -51,6 +55,18 @@ export function getScreenerCsvExportUrl(filters: Pick<ScreenerFilters, "screenDa
 export async function getRecentJobRuns(limit = 1): Promise<JobRun[]> {
   const params = new URLSearchParams({ limit: String(limit) });
   const res = await fetch(`/api/v1/meta/job-runs?${params.toString()}`);
+  const json = await res.json();
+  return json.data;
+}
+
+export async function getLatestScreenDate(): Promise<string | null> {
+  const res = await fetch("/api/v1/meta/latest-screen-date");
+  const json = await res.json();
+  return json.data.latest_screen_date;
+}
+
+export async function getPresets(): Promise<PresetMeta[]> {
+  const res = await fetch("/api/v1/meta/presets");
   const json = await res.json();
   return json.data;
 }
