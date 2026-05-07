@@ -85,6 +85,13 @@ def test_export_screener_csv_returns_file_content():
     assert "screen_date" in res.text
 
 
+def test_export_screener_xlsx_returns_file_content():
+    res = client.get("/api/v1/export/screener.xlsx?screen_date=2026-05-06&preset=balanced")
+    assert res.status_code == 200
+    assert "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" in res.headers["content-type"]
+    assert len(res.content) > 0
+
+
 def test_meta_job_runs_returns_recent_runs():
     monkeypatch_argv = [
         "cli",

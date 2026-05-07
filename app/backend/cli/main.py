@@ -94,7 +94,9 @@ def main() -> None:
         return
 
     if args.command == "run-daily":
-        run_daily_job(args.date, batch_size=args.batch_size)
+        handle_update_market(args.date, args.batch_size, args.qps)
+        handle_compute_features(args.date, "v1")
+        handle_run_screening(args.date, args.preset)
         return
 
     if args.command == "schedule-screening":

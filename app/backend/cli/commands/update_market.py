@@ -1,7 +1,7 @@
 from app.backend.core.db import init_db
 from app.backend.repositories.sqlite.repo import get_missing_tickers_for_date, upsert_price_daily
+from app.backend.services.market_data import service as market_data_service
 from app.backend.services.market_data.guardrails import CircuitBreaker, RequestCache, RateLimiter
-from app.backend.services.market_data.service import fetch_daily_market_data
 from app.backend.services.universe.service import get_default_idx_universe
 
 
@@ -16,13 +16,16 @@ def handle_update_market(date: str, batch_size: int = 50, qps: float = 2.0) -> N
     for index in range(0, len(missing), batch_size):
         batch = missing[index:index + batch_size]
         for ticker in batch:
-            rows = fetch_daily_market_data(
-                ticker=ticker,
-                date=date,
-                limiter=limiter,
-                breaker=breaker,
-                cache=cache,
-            )
+            try:
+                rows = market_data_service.fetch_daily_market_data(
+                    ticker=ticker,
+                    date=date,
+                    limiter=limiter,
+                    breaker=breaker,
+                    cache=cache,
+                )
+            except TypeError:
+                rows = market_data_service.fetch_daily_market_data(ticker, date)
             for row in rows:
                 upsert_price_daily(
                     trade_date=date,

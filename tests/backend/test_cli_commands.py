@@ -62,3 +62,47 @@ def test_schedule_screening_command_dispatches(monkeypatch):
     assert captured == {
         "timezone": "Asia/Jakarta",
     }
+
+
+def test_run_daily_orchestrates_pipeline_handlers(monkeypatch):
+    calls: list[str] = []
+
+    def fake_update(date: str, batch_size: int, qps: float) -> None:
+        calls.append(f"update:{date}:{batch_size}:{qps}")
+
+    def fake_compute(date: str, feature_version: str) -> None:
+        calls.append(f"compute:{date}:{feature_version}")
+
+    def fake_screen(date: str, preset: str) -> None:
+        calls.append(f"screen:{date}:{preset}")
+
+    def fail_legacy(_: str, batch_size: int = 50) -> None:
+        raise AssertionError(f"legacy run_daily_job should not be called ({batch_size})")
+
+    monkeypatch.setattr("app.backend.cli.main.handle_update_market", fake_update, raising=False)
+    monkeypatch.setattr("app.backend.cli.main.handle_compute_features", fake_compute, raising=False)
+    monkeypatch.setattr("app.backend.cli.main.handle_run_screening", fake_screen, raising=False)
+    monkeypatch.setattr("app.backend.cli.main.run_daily_job", fail_legacy, raising=False)
+    monkeypatch.setattr(
+        "sys.argv",
+        [
+            "cli",
+            "run-daily",
+            "--date",
+            "2026-05-07",
+            "--preset",
+            "aggressive",
+            "--batch-size",
+            "25",
+            "--qps",
+            "3",
+        ],
+    )
+
+    cli_main()
+
+    assert calls == [
+        "update:2026-05-07:25:3.0",
+        "compute:2026-05-07:v1",
+        "screen:2026-05-07:aggressive",
+    ]

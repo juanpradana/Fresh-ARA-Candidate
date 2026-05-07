@@ -1,5 +1,7 @@
 import csv
-from io import StringIO
+from io import BytesIO, StringIO
+
+from openpyxl import Workbook
 
 from fastapi import APIRouter, Query, Response
 
@@ -104,6 +106,29 @@ def export_screener_csv(
     writer.writeheader()
     writer.writerows(rows)
     return Response(content=output.getvalue(), media_type="text/csv")
+
+
+@router.get("/export/screener.xlsx")
+def export_screener_xlsx(
+    screen_date: str | None = Query(default=None),
+    preset: str = Query(default="balanced"),
+) -> Response:
+    init_db()
+    rows = get_screener_csv_rows(screen_date=screen_date, preset=preset)
+    workbook = Workbook()
+    sheet = workbook.active
+    sheet.title = "Screener"
+    headers = ["screen_date", "ticker", "score", "rank_num", "pass_count", "category"]
+    sheet.append(headers)
+    for row in rows:
+        sheet.append([row.get(header) for header in headers])
+
+    output = BytesIO()
+    workbook.save(output)
+    return Response(
+        content=output.getvalue(),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    )
 
 
 @router.get("/screener")
