@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Float, Integer, Text
+from sqlalchemy import Column, Float, Integer, Text, UniqueConstraint
 
 from app.backend.core.db import Base
 
@@ -9,6 +9,35 @@ class Ticker(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     ticker = Column(Text, unique=True, nullable=False)
     symbol = Column(Text, nullable=False)
+
+
+class PriceDaily(Base):
+    __tablename__ = "prices_daily"
+    __table_args__ = (UniqueConstraint("trade_date", "ticker", name="uq_prices_daily_trade_ticker"),)
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    trade_date = Column(Text, nullable=False)
+    ticker = Column(Text, nullable=False)
+    open = Column(Float, nullable=False)
+    high = Column(Float, nullable=False)
+    low = Column(Float, nullable=False)
+    close = Column(Float, nullable=False)
+    volume = Column(Float, nullable=False)
+    source = Column(Text, nullable=False, default="yfinance")
+
+
+class FeatureDaily(Base):
+    __tablename__ = "features_daily"
+    __table_args__ = (UniqueConstraint("trade_date", "ticker", "feature_version", name="uq_features_daily_trade_ticker_version"),)
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    trade_date = Column(Text, nullable=False)
+    ticker = Column(Text, nullable=False)
+    vol_ratio = Column(Float, nullable=False)
+    range_pct = Column(Float, nullable=False)
+    price_action = Column(Float, nullable=False)
+    is_ara_t0 = Column(Integer, nullable=False, default=0)
+    feature_version = Column(Text, nullable=False, default="v1")
 
 
 class ScreeningResult(Base):

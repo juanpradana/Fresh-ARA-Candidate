@@ -3,7 +3,7 @@ from sqlalchemy import and_, func, select
 from statistics import mean
 
 from app.backend.core.db import SessionLocal
-from app.backend.repositories.sqlite.models import JobRun, ScreeningResult, Ticker
+from app.backend.repositories.sqlite.models import FeatureDaily, JobRun, PriceDaily, ScreeningResult, Ticker
 
 
 def upsert_screening_result(
@@ -303,6 +303,172 @@ def get_recent_job_runs(limit: int = 10) -> list[dict]:
                 "error_message": row.error_message,
                 "started_at": row.started_at,
                 "finished_at": row.finished_at,
+            }
+            for row in rows
+        ]
+    finally:
+        session.close()
+
+
+def has_price_daily(trade_date: str, ticker: str) -> bool:
+    session = SessionLocal()
+    try:
+        row = session.execute(
+            select(PriceDaily).where(
+                PriceDaily.trade_date == trade_date,
+                PriceDaily.ticker == ticker,
+            )
+        ).scalar_one_or_none()
+        return row is not None
+    finally:
+        session.close()
+
+
+def get_missing_tickers_for_date(trade_date: str, tickers: list[str]) -> list[str]:
+    if not tickers:
+        return []
+
+    session = SessionLocal()
+    try:
+        rows = session.execute(
+            select(PriceDaily.ticker).where(PriceDaily.trade_date == trade_date)
+        ).all()
+        existing = {ticker for (ticker,) in rows}
+        return [ticker for ticker in tickers if ticker not in existing]
+    finally:
+        session.close()
+
+
+def upsert_price_daily(
+    trade_date: str,
+    ticker: str,
+    open_price: float,
+    high_price: float,
+    low_price: float,
+    close_price: float,
+    volume: float,
+    source: str = "yfinance",
+) -> None:
+    session = SessionLocal()
+    try:
+        existing = session.execute(
+            select(PriceDaily).where(
+                PriceDaily.trade_date == trade_date,
+                PriceDaily.ticker == ticker,
+            )
+        ).scalar_one_or_none()
+
+        if existing is None:
+            session.add(
+                PriceDaily(
+                    trade_date=trade_date,
+                    ticker=ticker,
+                    open=open_price,
+                    high=high_price,
+                    low=low_price,
+                    close=close_price,
+                    volume=volume,
+                    source=source,
+                )
+            )
+        else:
+            existing.open = open_price
+            existing.high = high_price
+            existing.low = low_price
+            existing.close = close_price
+            existing.volume = volume
+            existing.source = source
+
+        session.commit()
+    finally:
+        session.close()
+
+
+def get_price_rows_by_date(trade_date: str) -> list[dict]:
+    session = SessionLocal()
+    try:
+        rows = session.execute(
+            select(PriceDaily)
+            .where(PriceDaily.trade_date == trade_date)
+            .order_by(PriceDaily.ticker.asc())
+        ).scalars().all()
+        return [
+            {
+                "ticker": row.ticker,
+                "open": row.open,
+                "high": row.high,
+                "low": row.low,
+                "close": row.close,
+                "volume": row.volume,
+                "prev_volume": row.volume,
+                "prev_close": row.close,
+            }
+            for row in rows
+        ]
+    finally:
+        session.close()
+
+
+def upsert_feature_daily(
+    trade_date: str,
+    ticker: str,
+    vol_ratio: float,
+    range_pct: float,
+    price_action: float,
+    is_ara_t0: int,
+    feature_version: str = "v1",
+) -> None:
+    session = SessionLocal()
+    try:
+        existing = session.execute(
+            select(FeatureDaily).where(
+                FeatureDaily.trade_date == trade_date,
+                FeatureDaily.ticker == ticker,
+                FeatureDaily.feature_version == feature_version,
+            )
+        ).scalar_one_or_none()
+
+        if existing is None:
+            session.add(
+                FeatureDaily(
+                    trade_date=trade_date,
+                    ticker=ticker,
+                    vol_ratio=vol_ratio,
+                    range_pct=range_pct,
+                    price_action=price_action,
+                    is_ara_t0=is_ara_t0,
+                    feature_version=feature_version,
+                )
+            )
+        else:
+            existing.vol_ratio = vol_ratio
+            existing.range_pct = range_pct
+            existing.price_action = price_action
+            existing.is_ara_t0 = is_ara_t0
+
+        session.commit()
+    finally:
+        session.close()
+
+
+def get_feature_rows_by_date(trade_date: str, feature_version: str = "v1") -> list[dict]:
+    session = SessionLocal()
+    try:
+        rows = session.execute(
+            select(FeatureDaily)
+            .where(
+                FeatureDaily.trade_date == trade_date,
+                FeatureDaily.feature_version == feature_version,
+            )
+            .order_by(FeatureDaily.ticker.asc())
+        ).scalars().all()
+        return [
+            {
+                "ticker": row.ticker,
+                "vol_ratio": row.vol_ratio,
+                "range_pct": row.range_pct,
+                "price_action": row.price_action,
+                "is_ara_t0": row.is_ara_t0,
             }
             for row in rows
         ]
