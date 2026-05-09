@@ -94,6 +94,18 @@ def get_latest_screen_date() -> str | None:
         session.close()
 
 
+def get_screener_total(screen_date: str | None = None, preset: str = "balanced") -> int:
+    session = SessionLocal()
+    try:
+        stmt = select(func.count(ScreeningResult.id)).where(ScreeningResult.preset_name == preset)
+        if screen_date:
+            stmt = stmt.where(ScreeningResult.screen_date == screen_date)
+        total = session.execute(stmt).scalar_one()
+        return int(total)
+    finally:
+        session.close()
+
+
 def get_screener_detail(ticker: str, screen_date: str | None, preset: str = "balanced") -> dict | None:
     session = SessionLocal()
     try:

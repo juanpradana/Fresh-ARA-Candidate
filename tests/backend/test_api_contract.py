@@ -39,6 +39,8 @@ def test_screener_supports_limit_and_offset_query_params():
     assert len(body["data"]) <= 1
     assert body["meta"]["limit"] == 1
     assert body["meta"]["offset"] == 0
+    assert "total" in body["meta"]
+    assert body["meta"]["total"] >= body["meta"]["count"]
 
 
 def test_meta_latest_screen_date_exists():

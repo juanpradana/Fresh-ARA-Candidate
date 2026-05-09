@@ -16,6 +16,7 @@ from app.backend.repositories.sqlite.repo import (
     get_screener_detail,
     get_screener_history,
     get_screener_rows,
+    get_screener_total,
 )
 
 router = APIRouter()
@@ -157,10 +158,12 @@ def screener(
 ) -> dict:
     init_db()
     rows = get_screener_rows(screen_date=screen_date, preset=preset, limit=limit, offset=offset)
+    total = get_screener_total(screen_date=screen_date, preset=preset)
     return {
         "data": rows,
         "meta": {
             "count": len(rows),
+            "total": total,
             "screen_date": screen_date,
             "preset": preset,
             "limit": limit,
