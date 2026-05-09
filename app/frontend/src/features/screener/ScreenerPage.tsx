@@ -7,6 +7,7 @@ import {
   getRecentJobRuns,
   getScreener,
   getScreenerCsvExportUrl,
+  getScreenerXlsxExportUrl,
   getScreenerDetail,
   getScreenerHistory,
   type BacktestSummary,
@@ -27,6 +28,7 @@ export function ScreenerPage() {
   const [selectedTicker, setSelectedTicker] = useState<string | null>(null);
   const [selectedDetail, setSelectedDetail] = useState<ScreenerDetail>(null);
   const [selectedHistory, setSelectedHistory] = useState<ScreenerHistoryRow[]>([]);
+  const [isLoadingRows, setIsLoadingRows] = useState(true);
   const [filters, setFilters] = useState<ScreenerFilters>({
     screenDate: "",
     preset: "",
@@ -35,8 +37,10 @@ export function ScreenerPage() {
   });
 
   const loadData = (nextFilters: ScreenerFilters) => {
+    setIsLoadingRows(true);
     getScreener({ screenDate: nextFilters.screenDate, preset: nextFilters.preset }).then((result) => {
       setRows(Array.isArray(result) ? result : []);
+      setIsLoadingRows(false);
     });
     getBacktestSummary({ start: nextFilters.start, end: nextFilters.end, preset: nextFilters.preset }).then((result) => {
       setBacktest(result);
@@ -93,6 +97,7 @@ export function ScreenerPage() {
   return (
     <div data-testid="screener-shell" className="min-h-screen bg-zinc-950 text-zinc-100">
       <h1 className="font-ui">Fresh ARA Screener</h1>
+      <p className="text-xs text-zinc-400">Installable PWA ready</p>
       <section>
         <h2>Data Freshness</h2>
         <p>Latest screen date: {filters.screenDate}</p>
@@ -102,7 +107,7 @@ export function ScreenerPage() {
         <h2>Disclaimer</h2>
         <p>Sinyal bersifat probabilistik, bukan jaminan hasil.</p>
       </section>
-      <div>
+      <div data-testid="filter-action-rail" className="rounded border border-zinc-800 bg-zinc-900/40 p-3">
         <label htmlFor="preset">Preset</label>
         <select
           id="preset"
@@ -135,9 +140,10 @@ export function ScreenerPage() {
           onChange={(event) => setFilters((prev) => ({ ...prev, end: event.target.value }))}
         />
 
-        <button onClick={() => loadData(filters)}>Apply Filters</button>
+        <button className="rounded border border-emerald-400 px-3 py-1 text-emerald-300" onClick={() => loadData(filters)}>Apply Filters</button>
       </div>
       <a href={getScreenerCsvExportUrl({ screenDate: filters.screenDate, preset: filters.preset })}>Export CSV</a>
+      <a href={getScreenerXlsxExportUrl({ screenDate: filters.screenDate, preset: filters.preset })}>Export XLSX</a>
       {backtest && (
         <section>
           <h2>Backtest Summary</h2>
@@ -154,18 +160,33 @@ export function ScreenerPage() {
           {latestRun.error_message && <p>Error: {latestRun.error_message}</p>}
         </section>
       )}
+      <section data-testid="summary-strip" className="mt-3 rounded border border-zinc-800 bg-zinc-900/50 p-3">
+        <p>Total candidates: {rows.length}</p>
+        <p>Ideal count: {rows.filter((row) => row.category === "ideal").length}</p>
+      </section>
+      {isLoadingRows && <p>Loading screener...</p>}
       <section data-testid="screener-table-section">
         <ul>
-          {rows.map((row, index) => (
-            <li
-              key={`${row.ticker}-${index}`}
-              data-testid={`screener-row-${row.ticker}`}
-              className="font-data"
-              onClick={() => setSelectedTicker(row.ticker)}
-            >
-              {row.ticker}
-            </li>
-          ))}
+          {rows.map((row, index) => {
+            const isSelected = selectedTicker === row.ticker;
+            const hasSelection = selectedTicker !== null;
+            const rowClass = isSelected
+              ? "font-data border border-emerald-400 shadow-row-glow"
+              : hasSelection
+                ? "font-data opacity-60"
+                : "font-data";
+
+            return (
+              <li
+                key={`${row.ticker}-${index}`}
+                data-testid={`screener-row-${row.ticker}`}
+                className={rowClass}
+                onClick={() => setSelectedTicker(row.ticker)}
+              >
+                {row.ticker}
+              </li>
+            );
+          })}
         </ul>
       </section>
       <section data-testid="screener-card-section" className="hidden">
@@ -176,10 +197,21 @@ export function ScreenerPage() {
         ))}
       </section>
       {selectedTicker && (
-        <section>
+        <section data-testid="inline-detail-panel" className="mt-4 rounded-lg border border-zinc-800 bg-zinc-900/70 p-3">
           <h2>Selected Ticker</h2>
-          <p>{selectedTicker}</p>
-          {selectedDetail && <p>Detail score: {selectedDetail.score ?? "-"}</p>}
+          <button
+            type="button"
+            className="mb-2 rounded border border-zinc-700 px-2 py-1"
+            onClick={() => {
+              setSelectedTicker(null);
+              setSelectedDetail(null);
+              setSelectedHistory([]);
+            }}
+          >
+            Close Detail
+          </button>
+          <p>Selected: {selectedTicker}</p>
+          {selectedDetail && <p>Score: {typeof selectedDetail.score === "number" ? selectedDetail.score.toFixed(2) : "-"}</p>}
           {selectedHistory.length > 0 && <p>History rows: {selectedHistory.length}</p>}
         </section>
       )}

@@ -98,6 +98,14 @@ export function getScreenerCsvExportUrl(filters: Pick<ScreenerFilters, "screenDa
   return `/api/v1/export/screener.csv?${params.toString()}`;
 }
 
+export function getScreenerXlsxExportUrl(filters: Pick<ScreenerFilters, "screenDate" | "preset">): string {
+  const params = new URLSearchParams({
+    screen_date: filters.screenDate,
+    preset: filters.preset,
+  });
+  return `/api/v1/export/screener.xlsx?${params.toString()}`;
+}
+
 export async function getRecentJobRuns(limit = 1): Promise<JobRun[]> {
   try {
     const params = new URLSearchParams({ limit: String(limit) });

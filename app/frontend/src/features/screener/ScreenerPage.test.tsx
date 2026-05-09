@@ -90,14 +90,14 @@ test("shows screener title", async () => {
 
   render(<ScreenerPage />);
   expect(screen.getByText("Fresh ARA Screener")).toBeInTheDocument();
-  expect(await screen.findByText("BBRI.JK")).toBeInTheDocument();
+  expect(await screen.findByTestId("screener-row-BBRI.JK")).toBeInTheDocument();
 });
 
 test("renders rows from api", async () => {
   mockApiResponses();
 
   render(<ScreenerPage />);
-  expect(await screen.findByText("BBCA.JK")).toBeInTheDocument();
+  expect(await screen.findByTestId("screener-row-BBCA.JK")).toBeInTheDocument();
 });
 
 test("shows backtest summary", async () => {
@@ -118,6 +118,15 @@ test("shows export csv link", async () => {
 
   const link = await screen.findByRole("link", { name: "Export CSV" });
   expect(link).toHaveAttribute("href", "/api/v1/export/screener.csv?screen_date=2026-05-07&preset=balanced");
+});
+
+test("shows export xlsx link", async () => {
+  mockApiResponses();
+
+  render(<ScreenerPage />);
+
+  const link = await screen.findByRole("link", { name: "Export XLSX" });
+  expect(link).toHaveAttribute("href", "/api/v1/export/screener.xlsx?screen_date=2026-05-07&preset=balanced");
 });
 
 test("shows latest daily job status", async () => {
@@ -498,6 +507,21 @@ test("loads detail and history when selecting ticker", async () => {
   });
 });
 
+test("applies selected-row glow and dims non-selected rows", async () => {
+  mockApiResponses();
+
+  render(<ScreenerPage />);
+
+  const selectedRow = await screen.findByTestId("screener-row-BBRI.JK");
+  const otherRow = screen.getByTestId("screener-row-BBCA.JK");
+
+  fireEvent.click(selectedRow);
+
+  expect(selectedRow.className).toContain("shadow-row-glow");
+  expect(selectedRow.className).toContain("border-emerald-400");
+  expect(otherRow.className).toContain("opacity-60");
+});
+
 
 test("renders desktop table and mobile card containers", async () => {
   mockApiResponses();
@@ -506,4 +530,204 @@ test("renders desktop table and mobile card containers", async () => {
 
   expect(await screen.findByTestId("screener-table-section")).toBeInTheDocument();
   expect(screen.getByTestId("screener-card-section")).toBeInTheDocument();
+});
+
+
+test("shows summary metrics strip", async () => {
+  mockApiResponses();
+
+  render(<ScreenerPage />);
+
+  expect(await screen.findByTestId("summary-strip")).toBeInTheDocument();
+  expect(screen.getByText("Total candidates: 2")).toBeInTheDocument();
+  expect(screen.getByText("Ideal count: 0")).toBeInTheDocument();
+});
+
+test("applies terminal-style classes to summary strip", async () => {
+  mockApiResponses();
+
+  render(<ScreenerPage />);
+
+  const strip = await screen.findByTestId("summary-strip");
+  expect(strip.className).toContain("border-zinc-800");
+  expect(strip.className).toContain("bg-zinc-900/50");
+});
+
+test("applies terminal-style classes to filter action rail", async () => {
+  mockApiResponses();
+
+  render(<ScreenerPage />);
+
+  const rail = await screen.findByTestId("filter-action-rail");
+  expect(rail.className).toContain("border-zinc-800");
+  expect(rail.className).toContain("bg-zinc-900/40");
+
+  const applyButton = screen.getByRole("button", { name: "Apply Filters" });
+  expect(applyButton.className).toContain("border-emerald-400");
+  expect(applyButton.className).toContain("text-emerald-300");
+});
+
+test("shows inline detail panel with selected ticker and score", async () => {
+  vi.spyOn(globalThis, "fetch").mockImplementation(async (input: RequestInfo | URL) => {
+    const url = String(input);
+
+    if (url.includes("/api/v1/screener/BBRI.JK/history")) {
+      return {
+        json: async () => ({ data: [{ screen_date: "2026-05-07", score: 0.9 }] }),
+      } as Response;
+    }
+
+    if (url.includes("/api/v1/screener/BBRI.JK?")) {
+      return {
+        json: async () => ({ data: { ticker: "BBRI.JK", score: 0.9, pass_count: 4, category: "ideal" } }),
+      } as Response;
+    }
+
+    if (url.includes("/api/v1/meta/latest-screen-date")) {
+      return {
+        json: async () => ({ data: { latest_screen_date: "2026-05-07" } }),
+      } as Response;
+    }
+
+    if (url.includes("/api/v1/meta/presets")) {
+      return {
+        json: async () => ({ data: [{ preset_name: "balanced" }] }),
+      } as Response;
+    }
+
+    if (url.includes("/api/v1/meta/data-freshness")) {
+      return {
+        json: async () => ({
+          data: {
+            latest_screen_date: "2026-05-07",
+            is_complete: true,
+            warning: null,
+          },
+        }),
+      } as Response;
+    }
+
+    if (url.includes("/api/v1/meta/job-runs")) {
+      return {
+        json: async () => ({ data: [] }),
+      } as Response;
+    }
+
+    if (url.includes("/api/v1/analytics/backtest")) {
+      return {
+        json: async () => ({ data: { win_rate: 0.5, avg_score: 0.8, total: 1 } }),
+      } as Response;
+    }
+
+    return {
+      json: async () => ({
+        data: [{ ticker: "BBRI.JK", score: 0.9, rank_num: 1, pass_count: 4, category: "ideal" }],
+      }),
+    } as Response;
+  });
+
+  render(<ScreenerPage />);
+
+  fireEvent.click(await screen.findByTestId("screener-row-BBRI.JK"));
+
+  expect(await screen.findByTestId("inline-detail-panel")).toBeInTheDocument();
+  expect(screen.getByText("Selected: BBRI.JK")).toBeInTheDocument();
+  expect(screen.getByText("Score: 0.90")).toBeInTheDocument();
+});
+
+test("closes inline detail panel", async () => {
+  mockApiResponses();
+
+  render(<ScreenerPage />);
+
+  fireEvent.click(await screen.findByTestId("screener-row-BBRI.JK"));
+  expect(await screen.findByTestId("inline-detail-panel")).toBeInTheDocument();
+
+  fireEvent.click(screen.getByRole("button", { name: "Close Detail" }));
+
+  await waitFor(() => {
+    expect(screen.queryByTestId("inline-detail-panel")).not.toBeInTheDocument();
+  });
+});
+
+test("applies terminal-style classes to inline detail panel", async () => {
+  mockApiResponses();
+
+  render(<ScreenerPage />);
+
+  fireEvent.click(await screen.findByTestId("screener-row-BBRI.JK"));
+
+  const panel = await screen.findByTestId("inline-detail-panel");
+  expect(panel.className).toContain("border-zinc-800");
+  expect(panel.className).toContain("bg-zinc-900/70");
+
+  const closeButton = screen.getByRole("button", { name: "Close Detail" });
+  expect(closeButton.className).toContain("border-zinc-700");
+});
+
+test("keeps shell interactive during delayed requests", async () => {
+  vi.spyOn(globalThis, "fetch").mockImplementation(async (input: RequestInfo | URL) => {
+    const url = String(input);
+    await new Promise((resolve) => setTimeout(resolve, url.includes("/api/v1/screener") ? 80 : 20));
+
+    if (url.includes("/api/v1/meta/latest-screen-date")) {
+      return {
+        json: async () => ({ data: { latest_screen_date: "2026-05-07" } }),
+      } as Response;
+    }
+
+    if (url.includes("/api/v1/meta/presets")) {
+      return {
+        json: async () => ({ data: [{ preset_name: "balanced" }] }),
+      } as Response;
+    }
+
+    if (url.includes("/api/v1/meta/data-freshness")) {
+      return {
+        json: async () => ({
+          data: {
+            latest_screen_date: "2026-05-07",
+            is_complete: true,
+            warning: null,
+          },
+        }),
+      } as Response;
+    }
+
+    if (url.includes("/api/v1/meta/job-runs")) {
+      return {
+        json: async () => ({ data: [] }),
+      } as Response;
+    }
+
+    if (url.includes("/api/v1/analytics/backtest")) {
+      return {
+        json: async () => ({ data: { win_rate: 0.5, avg_score: 0.8, total: 2 } }),
+      } as Response;
+    }
+
+    return {
+      json: async () => ({
+        data: [{ ticker: "BBRI.JK", score: 0.9, rank_num: 1, pass_count: 4, category: "ideal" }],
+      }),
+    } as Response;
+  });
+
+  render(<ScreenerPage />);
+
+  expect(screen.getByText("Loading screener...")).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Apply Filters" })).toBeEnabled();
+
+  expect(await screen.findByTestId("screener-row-BBRI.JK")).toBeInTheDocument();
+  await waitFor(() => {
+    expect(screen.queryByText("Loading screener...")).not.toBeInTheDocument();
+  });
+});
+
+test("shows install-ready hint in ui shell", async () => {
+  mockApiResponses();
+
+  render(<ScreenerPage />);
+
+  expect(await screen.findByText("Installable PWA ready")).toBeInTheDocument();
 });

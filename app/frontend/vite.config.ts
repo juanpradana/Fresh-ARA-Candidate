@@ -28,8 +28,8 @@ export default defineConfig({
         short_name: "ARA Screener",
         start_url: "/",
         display: "standalone",
-        background_color: "#ffffff",
-        theme_color: "#111827",
+        background_color: "#09090b",
+        theme_color: "#09090b",
         icons: []
       }
     })
