@@ -112,7 +112,7 @@ def analytics_backtest(
 
 @router.get("/export/screener.csv")
 def export_screener_csv(
-    screen_date: str | None = Query(default=None),
+    screen_date: str = Query(...),
     preset: str = Query(default="balanced"),
 ) -> Response:
     init_db()
@@ -129,7 +129,7 @@ def export_screener_csv(
 
 @router.get("/export/screener.xlsx")
 def export_screener_xlsx(
-    screen_date: str | None = Query(default=None),
+    screen_date: str = Query(...),
     preset: str = Query(default="balanced"),
 ) -> Response:
     init_db()

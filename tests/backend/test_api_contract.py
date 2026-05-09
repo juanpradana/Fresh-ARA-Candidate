@@ -268,6 +268,14 @@ def test_export_screener_xlsx_returns_file_content():
     assert len(res.content) > 0
 
 
+def test_export_requires_screen_date_query_param():
+    csv_res = client.get("/api/v1/export/screener.csv?preset=balanced")
+    assert csv_res.status_code == 422
+
+    xlsx_res = client.get("/api/v1/export/screener.xlsx?preset=balanced")
+    assert xlsx_res.status_code == 422
+
+
 def test_meta_job_runs_returns_recent_runs():
     monkeypatch_argv = [
         "cli",
