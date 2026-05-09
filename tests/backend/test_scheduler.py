@@ -12,25 +12,32 @@ def test_schedule_screening_registers_daily_job(monkeypatch):
     captured: dict[str, object] = {}
 
     class FakeScheduler:
-        def add_job(self, func, trigger, kwargs, id, replace_existing):
+        def add_job(self, func, trigger, id, replace_existing):
             captured["func"] = func
             captured["trigger"] = trigger
-            captured["kwargs"] = kwargs
             captured["id"] = id
             captured["replace_existing"] = replace_existing
 
         def start(self):
             captured["started"] = True
 
+    run_dates: list[str] = []
+
+    def fake_run_daily_job(run_date: str):
+        run_dates.append(run_date)
+
     monkeypatch.setattr("app.backend.cli.commands.schedule_screening.BackgroundScheduler", lambda timezone: FakeScheduler())
     monkeypatch.setattr("app.backend.cli.commands.schedule_screening._resolve_run_date", lambda: "2026-05-09")
+    monkeypatch.setattr("app.backend.cli.commands.schedule_screening.run_daily_job", fake_run_daily_job)
 
     handle_schedule_screening("Asia/Jakarta")
 
     assert captured["id"] == "daily-screening"
     assert captured["replace_existing"] is True
-    assert captured["kwargs"]["run_date"] == "2026-05-09"
     assert captured["started"] is True
+
+    captured["func"]()
+    assert run_dates == ["2026-05-09"]
 
 
 def test_run_daily_job_writes_success_log(monkeypatch, tmp_path):

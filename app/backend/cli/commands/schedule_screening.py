@@ -13,14 +13,17 @@ def _resolve_run_date() -> str:
     return datetime.now().date().isoformat()
 
 
+def _run_scheduled_daily_job() -> None:
+    run_daily_job(run_date=_resolve_run_date())
+
+
 def handle_schedule_screening(timezone: str = "Asia/Jakarta") -> None:
     global _scheduler
     trigger = build_trigger(timezone=timezone)
     scheduler = BackgroundScheduler(timezone=timezone)
     scheduler.add_job(
-        run_daily_job,
+        _run_scheduled_daily_job,
         trigger=trigger,
-        kwargs={"run_date": _resolve_run_date()},
         id="daily-screening",
         replace_existing=True,
     )
