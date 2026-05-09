@@ -291,10 +291,12 @@ def get_backtest_summary(start: str, end: str, preset: str, top_n: int | None = 
         winners = sum(1 for row in rows if row.category == "ideal")
         avg_score = mean([row.score for row in rows]) if rows else 0.0
 
+        precision_at_top_n = (winners / total) if total else 0.0
         return {
             "win_rate": (winners / total) if total else 0.0,
             "avg_score": avg_score,
             "total": total,
+            "precision_at_top_n": precision_at_top_n,
         }
     finally:
         session.close()

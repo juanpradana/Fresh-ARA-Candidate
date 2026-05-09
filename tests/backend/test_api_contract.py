@@ -120,6 +120,7 @@ def test_analytics_backtest_supports_top_n_query_param():
     assert "win_rate" in body["data"]
     assert "avg_score" in body["data"]
     assert "total" in body["data"]
+    assert "precision_at_top_n" in body["data"]
 
 
 def test_export_screener_csv_returns_file_content():
