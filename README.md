@@ -1,15 +1,26 @@
-# Fresh ARA Candidate Screener
+# Fresh ARA Candidate
 
-Web screener saham Indonesia untuk mendeteksi kandidat **Fresh ARA** berbasis pola H-1 (quiet accumulation) sesuai PRD `prd.md`.
+Web screener read-only saham Indonesia untuk kandidat **Fresh ARA** berbasis pola H-1 (quiet accumulation), sesuai PRD di `prd.md`.
+
+## Status
+
+- Core pipeline + scheduler + observability: ✅
+- Screener API + analytics + export: ✅
+- Watchlist + alert event flow + KPI baseline: ✅
+- Frontend screener (responsive + PWA-ready): ✅
 
 ## Scope v1
 
-- Backend: FastAPI + SQLite + CLI pipeline skeleton
-- Frontend: React + Vite + TypeScript + PWA scaffold
-- API read-only (`/api/v1/*`)
-- UI read-only (tanpa tombol refresh market data)
+- Aplikasi bersifat **read-only display** (tanpa eksekusi order)
+- Tidak ada tombol refresh market data di UI (refresh via CLI)
 
-## Struktur Project
+## Tech Stack
+
+- Backend: FastAPI, SQLAlchemy, SQLite, APScheduler
+- Frontend: React, TypeScript, Vite, Vitest
+- Testing: pytest (backend), Vitest + Testing Library (frontend)
+
+## Project Structure
 
 ```text
 app/
@@ -21,10 +32,10 @@ app/
     scheduler/
     services/
   frontend/
-docs/
+    src/
 tests/
+docs/
 prd.md
-requirements.txt
 ```
 
 ## Prasyarat
@@ -37,23 +48,11 @@ requirements.txt
 
 ### 1) Backend
 
-Buat dan aktifkan virtual environment (Git Bash di Windows):
-
 ```bash
 python -m venv .venv
 source .venv/Scripts/activate
-```
-
-Install dependency backend dan inisialisasi DB:
-
-```bash
 pip install -r requirements.txt
 python -c "from app.backend.core.db import init_db; init_db()"
-```
-
-Jalankan API:
-
-```bash
 uvicorn app.backend.api.app:app --reload
 ```
 
@@ -64,35 +63,68 @@ npm --prefix app/frontend install
 npm --prefix app/frontend run dev
 ```
 
-### 3) Jalankan pipeline harian (skeleton)
+### 3) Jalankan pipeline harian
 
 ```bash
-python -m app.backend.cli.main run-daily --date YYYY-MM-DD
+python -m app.backend.cli.main run-daily --date YYYY-MM-DD --preset balanced
 ```
+
+## Common CLI Commands
+
+```bash
+python -m app.backend.cli.main update-market --date YYYY-MM-DD --batch-size 50 --qps 2
+python -m app.backend.cli.main backfill-market --start YYYY-MM-DD --end YYYY-MM-DD --qps 2
+python -m app.backend.cli.main compute-features --date YYYY-MM-DD --feature-version v1
+python -m app.backend.cli.main run-screening --date YYYY-MM-DD --preset balanced
+python -m app.backend.cli.main run-daily --date YYYY-MM-DD --preset balanced
+python -m app.backend.cli.main schedule-screening --timezone Asia/Jakarta
+```
+
+## API Highlights
+
+Base path: `/api/v1`
+
+- Health/meta:
+  - `GET /health`
+  - `GET /meta/latest-screen-date`
+  - `GET /meta/data-freshness`
+  - `GET /meta/presets`
+  - `GET /meta/job-runs`
+- Screener:
+  - `GET /screener`
+  - `GET /screener/{ticker}`
+  - `GET /screener/{ticker}/history`
+- Analytics/export:
+  - `GET /analytics/distribution`
+  - `GET /analytics/backtest`
+  - `GET /analytics/kpi`
+  - `GET /export/screener.csv`
+  - `GET /export/screener.xlsx`
+- Watchlist/alerts:
+  - `GET /watchlists`
+  - `GET /watchlists/{watchlist_name}/tickers`
+  - `POST /watchlists/{watchlist_name}/tickers`
+  - `DELETE /watchlists/{watchlist_name}/tickers/{ticker}`
+  - `GET /alerts/recent`
 
 ## Testing
 
 Backend:
 
 ```bash
-pytest tests/backend -v
+pytest -q
 ```
 
 Frontend:
 
 ```bash
-npm --prefix app/frontend test
+npm --prefix app/frontend run test
 npm --prefix app/frontend run build
 ```
 
-## Endpoint yang sudah tersedia (awal)
+## Documentation
 
-- `GET /api/v1/health`
-- `GET /api/v1/screener`
-
-## Dokumen
-
-- PRD: `prd.md`
-- Design spec: `docs/superpowers/specs/2026-05-06-fresh-ara-screener-design.md`
-- Implementation plan: `docs/superpowers/plans/2026-05-06-fresh-ara-screener-implementation.md`
-- Local runbook: `docs/local-runbook.md`
+- PRD: [`prd.md`](./prd.md)
+- Local runbook: [`docs/local-runbook.md`](./docs/local-runbook.md)
+- Design spec: [`docs/superpowers/specs/2026-05-06-fresh-ara-screener-design.md`](./docs/superpowers/specs/2026-05-06-fresh-ara-screener-design.md)
+- Implementation plan: [`docs/superpowers/plans/2026-05-06-fresh-ara-screener-implementation.md`](./docs/superpowers/plans/2026-05-06-fresh-ara-screener-implementation.md)
