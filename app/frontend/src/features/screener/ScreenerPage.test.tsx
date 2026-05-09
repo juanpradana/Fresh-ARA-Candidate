@@ -497,3 +497,13 @@ test("loads detail and history when selecting ticker", async () => {
     expect(calls.some((url) => url.includes("/api/v1/screener/BBRI.JK/history?start=2026-05-01&end=2026-05-31&preset=balanced"))).toBe(true);
   });
 });
+
+
+test("renders desktop table and mobile card containers", async () => {
+  mockApiResponses();
+
+  render(<ScreenerPage />);
+
+  expect(await screen.findByTestId("screener-table-section")).toBeInTheDocument();
+  expect(screen.getByTestId("screener-card-section")).toBeInTheDocument();
+});

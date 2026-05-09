@@ -154,18 +154,27 @@ export function ScreenerPage() {
           {latestRun.error_message && <p>Error: {latestRun.error_message}</p>}
         </section>
       )}
-      <ul>
+      <section data-testid="screener-table-section">
+        <ul>
+          {rows.map((row, index) => (
+            <li
+              key={`${row.ticker}-${index}`}
+              data-testid={`screener-row-${row.ticker}`}
+              className="font-data"
+              onClick={() => setSelectedTicker(row.ticker)}
+            >
+              {row.ticker}
+            </li>
+          ))}
+        </ul>
+      </section>
+      <section data-testid="screener-card-section" className="hidden">
         {rows.map((row, index) => (
-          <li
-            key={`${row.ticker}-${index}`}
-            data-testid={`screener-row-${row.ticker}`}
-            className="font-data"
-            onClick={() => setSelectedTicker(row.ticker)}
-          >
+          <article key={`${row.ticker}-card-${index}`} className="font-data">
             {row.ticker}
-          </li>
+          </article>
         ))}
-      </ul>
+      </section>
       {selectedTicker && (
         <section>
           <h2>Selected Ticker</h2>
