@@ -57,6 +57,23 @@ def _ensure_screening_results_columns(bind_engine: Engine) -> None:
             connection.exec_driver_sql(f"ALTER TABLE screening_results ADD COLUMN {column_name} {column_ddl}")
 
 
+def _ensure_features_daily_columns(bind_engine: Engine) -> None:
+    required_columns = {
+        "days_since_last_ara": "INTEGER NOT NULL DEFAULT 999",
+        "is_bb_squeeze_20": "INTEGER NOT NULL DEFAULT 0",
+    }
+
+    with bind_engine.begin() as connection:
+        rows = connection.exec_driver_sql("PRAGMA table_info(features_daily)").fetchall()
+        if not rows:
+            return
+        existing = {str(row[1]) for row in rows}
+        for column_name, column_ddl in required_columns.items():
+            if column_name in existing:
+                continue
+            connection.exec_driver_sql(f"ALTER TABLE features_daily ADD COLUMN {column_name} {column_ddl}")
+
+
 def _ensure_job_runs_unique_key(bind_engine: Engine) -> None:
     with bind_engine.begin() as connection:
         rows = connection.exec_driver_sql("PRAGMA table_info(job_runs)").fetchall()
@@ -134,5 +151,6 @@ def init_db() -> None:
     Base.metadata.create_all(bind=engine)
     _ensure_job_runs_columns(engine)
     _ensure_screening_results_columns(engine)
+    _ensure_features_daily_columns(engine)
     _ensure_job_runs_unique_key(engine)
     seed_default_presets()

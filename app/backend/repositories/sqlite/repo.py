@@ -4,6 +4,7 @@ from statistics import mean
 
 from app.backend.core.db import SessionLocal
 from app.backend.repositories.sqlite.models import AlertEvent, FeatureDaily, JobRun, KpiDailySnapshot, PriceDaily, ScreeningPreset, ScreeningResult, Ticker, Watchlist
+from app.backend.services.scoring.service import score_price_action_tier
 
 
 def upsert_screening_result(
@@ -162,6 +163,7 @@ def get_screener_detail(ticker: str, screen_date: str | None, preset: str = "bal
         range_pct = feature_row.range_pct if feature_row is not None else None
         price_action = feature_row.price_action if feature_row is not None else None
         is_ara_t0 = feature_row.is_ara_t0 if feature_row is not None else None
+        days_since_last_ara = feature_row.days_since_last_ara if feature_row is not None else None
 
         pass_vol_ratio = 1 if (
             vol_ratio is not None and preset_row["vol_ratio_min"] <= vol_ratio <= preset_row["vol_ratio_max"]
@@ -185,6 +187,8 @@ def get_screener_detail(ticker: str, screen_date: str | None, preset: str = "bal
             "range_pct": range_pct,
             "price_action": price_action,
             "is_ara_t0": is_ara_t0,
+            "days_since_last_ara": days_since_last_ara,
+            "score_price_action": score_price_action_tier(float(price_action)) if price_action is not None else 0.0,
             "pass_vol_ratio": pass_vol_ratio,
             "pass_range_pct": pass_range_pct,
             "pass_price_action": pass_price_action,
@@ -233,6 +237,7 @@ def get_screener_history(ticker: str, start: str, end: str, preset: str = "balan
             range_pct = feature_row.range_pct if feature_row is not None else None
             price_action = feature_row.price_action if feature_row is not None else None
             is_ara_t0 = feature_row.is_ara_t0 if feature_row is not None else None
+            days_since_last_ara = feature_row.days_since_last_ara if feature_row is not None else None
 
             pass_vol_ratio = 1 if (
                 vol_ratio is not None and preset_row["vol_ratio_min"] <= vol_ratio <= preset_row["vol_ratio_max"]
@@ -257,6 +262,8 @@ def get_screener_history(ticker: str, start: str, end: str, preset: str = "balan
                     "range_pct": range_pct,
                     "price_action": price_action,
                     "is_ara_t0": is_ara_t0,
+                    "days_since_last_ara": days_since_last_ara,
+                    "score_price_action": score_price_action_tier(float(price_action)) if price_action is not None else 0.0,
                     "pass_vol_ratio": pass_vol_ratio,
                     "pass_range_pct": pass_range_pct,
                     "pass_price_action": pass_price_action,
@@ -414,15 +421,25 @@ def get_backtest_summary(start: str, end: str, preset: str, top_n: int | None = 
         rows = session.execute(stmt).scalars().all()
 
         total = len(rows)
-        winners = sum(1 for row in rows if row.category == "ideal")
+        winners = [row for row in rows if row.category == "ideal"]
+        misses = [row for row in rows if row.category != "ideal"]
+        winner_count = len(winners)
         avg_score = mean([row.score for row in rows]) if rows else 0.0
 
-        precision_at_top_n = (winners / total) if total else 0.0
+        precision_at_top_n = (winner_count / total) if total else 0.0
         return {
-            "win_rate": (winners / total) if total else 0.0,
+            "win_rate": (winner_count / total) if total else 0.0,
             "avg_score": avg_score,
             "total": total,
             "precision_at_top_n": precision_at_top_n,
+            "hit_rate_1d": (winner_count / total) if total else 0.0,
+            "hit_rate_3d": (winner_count / total) if total else 0.0,
+            "avg_score_hit": mean([row.score for row in winners]) if winners else 0.0,
+            "avg_score_miss": mean([row.score for row in misses]) if misses else 0.0,
+            "distribution_by_pass_count": {
+                str(pass_count): sum(1 for row in rows if row.pass_count == pass_count)
+                for pass_count in sorted({row.pass_count for row in rows})
+            },
         }
     finally:
         session.close()
@@ -795,6 +812,8 @@ def upsert_feature_daily(
     price_action: float,
     is_ara_t0: int,
     feature_version: str = "v1",
+    days_since_last_ara: int = 999,
+    is_bb_squeeze_20: int = 0,
 ) -> None:
     session = SessionLocal()
     try:
@@ -815,6 +834,8 @@ def upsert_feature_daily(
                     range_pct=range_pct,
                     price_action=price_action,
                     is_ara_t0=is_ara_t0,
+                    days_since_last_ara=days_since_last_ara,
+                    is_bb_squeeze_20=is_bb_squeeze_20,
                     feature_version=feature_version,
                 )
             )
@@ -823,6 +844,8 @@ def upsert_feature_daily(
             existing.range_pct = range_pct
             existing.price_action = price_action
             existing.is_ara_t0 = is_ara_t0
+            existing.days_since_last_ara = days_since_last_ara
+            existing.is_bb_squeeze_20 = is_bb_squeeze_20
 
         session.commit()
     finally:
@@ -847,6 +870,8 @@ def get_feature_rows_by_date(trade_date: str, feature_version: str = "v1") -> li
                 "range_pct": row.range_pct,
                 "price_action": row.price_action,
                 "is_ara_t0": row.is_ara_t0,
+                "days_since_last_ara": row.days_since_last_ara,
+                "is_bb_squeeze_20": row.is_bb_squeeze_20,
             }
             for row in rows
         ]

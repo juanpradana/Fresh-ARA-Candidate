@@ -76,6 +76,8 @@ def test_ticker_detail_and_history_exist():
     assert "pass_range_pct" in detail_body["data"]
     assert "pass_price_action" in detail_body["data"]
     assert "pass_is_ara_t0" in detail_body["data"]
+    assert "days_since_last_ara" in detail_body["data"]
+    assert "score_price_action" in detail_body["data"]
 
     history = client.get("/api/v1/screener/BBCA.JK/history?start=2026-05-01&end=2026-05-31&preset=balanced")
     assert history.status_code == 200
@@ -91,6 +93,8 @@ def test_ticker_detail_and_history_exist():
         assert "pass_range_pct" in first
         assert "pass_price_action" in first
         assert "pass_is_ara_t0" in first
+        assert "days_since_last_ara" in first
+        assert "score_price_action" in first
 
 
 def test_ticker_detail_and_history_return_stable_shape_for_unknown_ticker():

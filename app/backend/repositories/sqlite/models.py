@@ -37,6 +37,8 @@ class FeatureDaily(Base):
     range_pct = Column(Float, nullable=False)
     price_action = Column(Float, nullable=False)
     is_ara_t0 = Column(Integer, nullable=False, default=0)
+    days_since_last_ara = Column(Integer, nullable=False, default=999)
+    is_bb_squeeze_20 = Column(Integer, nullable=False, default=0)
     feature_version = Column(Text, nullable=False, default="v1")
 
 
