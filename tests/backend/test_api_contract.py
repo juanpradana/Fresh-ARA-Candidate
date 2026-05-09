@@ -88,6 +88,23 @@ def test_ticker_detail_and_history_exist():
         assert "pass_is_ara_t0" in first
 
 
+def test_ticker_detail_and_history_return_stable_shape_for_unknown_ticker():
+    detail = client.get("/api/v1/screener/ZZZZ.JK?screen_date=2026-05-06&preset=balanced")
+    assert detail.status_code == 200
+    detail_body = detail.json()
+    assert detail_body["data"] is None
+    assert "screen_date" in detail_body["meta"]
+    assert "preset" in detail_body["meta"]
+
+    history = client.get("/api/v1/screener/ZZZZ.JK/history?start=2026-05-01&end=2026-05-31&preset=balanced")
+    assert history.status_code == 200
+    history_body = history.json()
+    assert history_body["data"] == []
+    assert "start" in history_body["meta"]
+    assert "end" in history_body["meta"]
+    assert "preset" in history_body["meta"]
+
+
 def test_meta_presets_returns_default_presets():
     res = client.get("/api/v1/meta/presets")
     assert res.status_code == 200
