@@ -80,6 +80,10 @@ def test_run_daily_orchestrates_pipeline_handlers(monkeypatch):
     def fail_legacy(_: str, batch_size: int = 50) -> None:
         raise AssertionError(f"legacy run_daily_job should not be called ({batch_size})")
 
+    monkeypatch.setattr("app.backend.cli.main.init_db", lambda: None, raising=False)
+    monkeypatch.setattr("app.backend.cli.main.try_start_job_run", lambda run_date, started_at: True, raising=False)
+    monkeypatch.setattr("app.backend.cli.main.finish_job_run_success", lambda run_date, finished_at: None, raising=False)
+    monkeypatch.setattr("app.backend.cli.main.finish_job_run_failed", lambda run_date, finished_at, error_message: None, raising=False)
     monkeypatch.setattr("app.backend.cli.main.handle_update_market", fake_update, raising=False)
     monkeypatch.setattr("app.backend.cli.main.handle_compute_features", fake_compute, raising=False)
     monkeypatch.setattr("app.backend.cli.main.handle_run_screening", fake_screen, raising=False)
@@ -122,6 +126,10 @@ def test_run_daily_blocks_when_market_data_incomplete(monkeypatch):
     def fake_screen(_: str, __: str) -> None:
         calls.append("screen")
 
+    monkeypatch.setattr("app.backend.cli.main.init_db", lambda: None, raising=False)
+    monkeypatch.setattr("app.backend.cli.main.try_start_job_run", lambda run_date, started_at: True, raising=False)
+    monkeypatch.setattr("app.backend.cli.main.finish_job_run_success", lambda run_date, finished_at: None, raising=False)
+    monkeypatch.setattr("app.backend.cli.main.finish_job_run_failed", lambda run_date, finished_at, error_message: None, raising=False)
     monkeypatch.setattr("app.backend.cli.main.handle_update_market", fake_update, raising=False)
     monkeypatch.setattr("app.backend.cli.main.handle_compute_features", fake_compute, raising=False)
     monkeypatch.setattr("app.backend.cli.main.handle_run_screening", fake_screen, raising=False)
@@ -133,3 +141,95 @@ def test_run_daily_blocks_when_market_data_incomplete(monkeypatch):
     cli_main()
 
     assert calls == ["update:2026-05-07:50:2.0"]
+
+
+def test_run_daily_records_job_run_success(monkeypatch):
+    calls: list[str] = []
+
+    def fake_init_db() -> None:
+        calls.append("init")
+
+    def fake_start(run_date: str, started_at: str) -> bool:
+        calls.append(f"start:{run_date}")
+        return True
+
+    def fake_success(run_date: str, finished_at: str) -> None:
+        calls.append(f"success:{run_date}")
+
+    def fake_failed(run_date: str, finished_at: str, error_message: str) -> None:
+        calls.append(f"failed:{run_date}:{error_message}")
+
+    def fake_update(date: str, batch_size: int, qps: float) -> dict:
+        calls.append(f"update:{date}:{batch_size}:{qps}")
+        return {"is_complete": True}
+
+    def fake_compute(date: str, feature_version: str) -> None:
+        calls.append(f"compute:{date}:{feature_version}")
+
+    def fake_screen(date: str, preset: str) -> None:
+        calls.append(f"screen:{date}:{preset}")
+
+    monkeypatch.setattr("app.backend.cli.main.init_db", fake_init_db, raising=False)
+    monkeypatch.setattr("app.backend.cli.main.try_start_job_run", fake_start, raising=False)
+    monkeypatch.setattr("app.backend.cli.main.finish_job_run_success", fake_success, raising=False)
+    monkeypatch.setattr("app.backend.cli.main.finish_job_run_failed", fake_failed, raising=False)
+    monkeypatch.setattr("app.backend.cli.main.handle_update_market", fake_update, raising=False)
+    monkeypatch.setattr("app.backend.cli.main.handle_compute_features", fake_compute, raising=False)
+    monkeypatch.setattr("app.backend.cli.main.handle_run_screening", fake_screen, raising=False)
+    monkeypatch.setattr("sys.argv", ["cli", "run-daily", "--date", "2026-05-09"])
+
+    cli_main()
+
+    assert calls == [
+        "init",
+        "start:2026-05-09",
+        "update:2026-05-09:50:2.0",
+        "compute:2026-05-09:v1",
+        "screen:2026-05-09:balanced",
+        "success:2026-05-09",
+    ]
+
+
+def test_run_daily_records_job_run_failed_when_incomplete(monkeypatch):
+    calls: list[str] = []
+
+    def fake_init_db() -> None:
+        calls.append("init")
+
+    def fake_start(run_date: str, started_at: str) -> bool:
+        calls.append(f"start:{run_date}")
+        return True
+
+    def fake_success(run_date: str, finished_at: str) -> None:
+        calls.append(f"success:{run_date}")
+
+    def fake_failed(run_date: str, finished_at: str, error_message: str) -> None:
+        calls.append(f"failed:{run_date}:{error_message}")
+
+    def fake_update(date: str, batch_size: int, qps: float) -> dict:
+        calls.append(f"update:{date}:{batch_size}:{qps}")
+        return {"is_complete": False}
+
+    def fake_compute(date: str, feature_version: str) -> None:
+        calls.append(f"compute:{date}:{feature_version}")
+
+    def fake_screen(date: str, preset: str) -> None:
+        calls.append(f"screen:{date}:{preset}")
+
+    monkeypatch.setattr("app.backend.cli.main.init_db", fake_init_db, raising=False)
+    monkeypatch.setattr("app.backend.cli.main.try_start_job_run", fake_start, raising=False)
+    monkeypatch.setattr("app.backend.cli.main.finish_job_run_success", fake_success, raising=False)
+    monkeypatch.setattr("app.backend.cli.main.finish_job_run_failed", fake_failed, raising=False)
+    monkeypatch.setattr("app.backend.cli.main.handle_update_market", fake_update, raising=False)
+    monkeypatch.setattr("app.backend.cli.main.handle_compute_features", fake_compute, raising=False)
+    monkeypatch.setattr("app.backend.cli.main.handle_run_screening", fake_screen, raising=False)
+    monkeypatch.setattr("sys.argv", ["cli", "run-daily", "--date", "2026-05-09"])
+
+    cli_main()
+
+    assert calls == [
+        "init",
+        "start:2026-05-09",
+        "update:2026-05-09:50:2.0",
+        "failed:2026-05-09:market data incomplete",
+    ]

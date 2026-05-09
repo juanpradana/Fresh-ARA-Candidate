@@ -1,17 +1,23 @@
 import argparse
+from datetime import datetime
 
 from app.backend.cli.commands.backfill_market import handle_backfill_market
 from app.backend.cli.commands.compute_features import handle_compute_features
 from app.backend.cli.commands.run_screening import handle_run_screening
 from app.backend.cli.commands.schedule_screening import handle_schedule_screening
 from app.backend.cli.commands.update_market import handle_update_market
-from app.backend.services.daily_job.service import run_daily_job
+from app.backend.core.db import init_db
 from app.backend.services.feature_engineering.service import compute_features
 from app.backend.services.market_data.service import fetch_daily_market_data
 from app.backend.services.scoring.service import score_candidate
 from app.backend.services.screening.service import is_fresh_ara_candidate
 from app.backend.services.universe.service import get_default_idx_universe
-from app.backend.repositories.sqlite.repo import upsert_screening_result
+from app.backend.repositories.sqlite.repo import (
+    finish_job_run_failed,
+    finish_job_run_success,
+    try_start_job_run,
+    upsert_screening_result,
+)
 
 
 def _run_daily(date: str, batch_size: int = 50) -> None:
@@ -41,6 +47,10 @@ def _run_daily(date: str, batch_size: int = 50) -> None:
                     pass_count=pass_count,
                     category="ideal" if passed else "candidate",
                 )
+
+
+def _now_iso() -> str:
+    return datetime.utcnow().isoformat()
 
 
 def main() -> None:
@@ -94,12 +104,32 @@ def main() -> None:
         return
 
     if args.command == "run-daily":
-        update_result = handle_update_market(args.date, args.batch_size, args.qps)
-        if not update_result.get("is_complete", False):
+        init_db()
+        started = try_start_job_run(run_date=args.date, started_at=_now_iso())
+        if not started:
             return
-        handle_compute_features(args.date, "v1")
-        handle_run_screening(args.date, args.preset)
-        return
+
+        try:
+            update_result = handle_update_market(args.date, args.batch_size, args.qps)
+            if not update_result.get("is_complete", False):
+                finish_job_run_failed(
+                    run_date=args.date,
+                    finished_at=_now_iso(),
+                    error_message="market data incomplete",
+                )
+                return
+
+            handle_compute_features(args.date, "v1")
+            handle_run_screening(args.date, args.preset)
+            finish_job_run_success(run_date=args.date, finished_at=_now_iso())
+            return
+        except Exception as exc:
+            finish_job_run_failed(
+                run_date=args.date,
+                finished_at=_now_iso(),
+                error_message=str(exc),
+            )
+            raise
 
     if args.command == "schedule-screening":
         handle_schedule_screening(args.timezone)
