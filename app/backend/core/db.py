@@ -59,6 +59,7 @@ def _ensure_screening_results_columns(bind_engine: Engine) -> None:
 
 def init_db() -> None:
     from app.backend.repositories.sqlite import models
+    from app.backend.repositories.sqlite.repo import seed_default_presets
 
     global engine
     engine = create_engine(_database_url(), future=True)
@@ -66,3 +67,4 @@ def init_db() -> None:
     Base.metadata.create_all(bind=engine)
     _ensure_job_runs_columns(engine)
     _ensure_screening_results_columns(engine)
+    seed_default_presets()

@@ -1,7 +1,7 @@
 from sqlalchemy import select
 
 from app.backend.core.db import init_db, SessionLocal
-from app.backend.repositories.sqlite.models import JobRun, Ticker
+from app.backend.repositories.sqlite.models import JobRun, ScreeningPreset, Ticker
 
 
 def test_init_db_creates_tables(tmp_path, monkeypatch):
@@ -74,5 +74,24 @@ def test_screening_results_model_has_prd_columns(tmp_path, monkeypatch):
         assert row.pass_price_action == 1
         assert row.pass_is_ara_t0 == 1
         assert row.reason_json == '{"rule":"balanced"}'
+    finally:
+        session.close()
+
+
+def test_screening_presets_seeded_in_db(tmp_path, monkeypatch):
+    monkeypatch.setenv("APP_DB_PATH", str(tmp_path / "test.sqlite"))
+    init_db()
+    session = SessionLocal()
+    try:
+        rows = session.execute(select(ScreeningPreset).order_by(ScreeningPreset.preset_name.asc())).scalars().all()
+        names = {row.preset_name for row in rows}
+        assert {"conservative", "balanced", "aggressive"}.issubset(names)
+        balanced = next(row for row in rows if row.preset_name == "balanced")
+        assert balanced.min_vol_ratio == 0.75
+        assert balanced.max_vol_ratio == 1.25
+        assert balanced.min_range_pct == 0.50
+        assert balanced.max_range_pct == 1.00
+        assert balanced.max_price_action == 0.70
+        assert balanced.require_not_ara == 1
     finally:
         session.close()

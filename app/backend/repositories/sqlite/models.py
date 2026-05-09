@@ -59,6 +59,21 @@ class ScreeningResult(Base):
     reason_json = Column(Text, nullable=True)
 
 
+class ScreeningPreset(Base):
+    __tablename__ = "screening_presets"
+
+    preset_name = Column(Text, primary_key=True)
+    min_vol_ratio = Column(Float, nullable=False)
+    max_vol_ratio = Column(Float, nullable=False)
+    min_range_pct = Column(Float, nullable=False)
+    max_range_pct = Column(Float, nullable=False)
+    max_price_action = Column(Float, nullable=False)
+    require_not_ara = Column(Integer, nullable=False, default=1)
+    score_weights_json = Column(Text, nullable=False, default="{}")
+    is_default = Column(Integer, nullable=False, default=0)
+    updated_at = Column(Text, nullable=True)
+
+
 class JobRun(Base):
     __tablename__ = "job_runs"
 

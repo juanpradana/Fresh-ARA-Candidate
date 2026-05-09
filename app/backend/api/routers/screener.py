@@ -52,6 +52,7 @@ def data_freshness() -> dict:
 
 @router.get("/meta/presets")
 def presets() -> dict:
+    init_db()
     return {
         "data": get_default_presets(),
         "meta": {},

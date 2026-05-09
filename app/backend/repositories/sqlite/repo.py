@@ -3,7 +3,7 @@ from sqlalchemy import and_, func, select
 from statistics import mean
 
 from app.backend.core.db import SessionLocal
-from app.backend.repositories.sqlite.models import FeatureDaily, JobRun, PriceDaily, ScreeningResult, Ticker
+from app.backend.repositories.sqlite.models import FeatureDaily, JobRun, PriceDaily, ScreeningPreset, ScreeningResult, Ticker
 
 
 def upsert_screening_result(
@@ -269,33 +269,107 @@ def get_screener_history(ticker: str, start: str, end: str, preset: str = "balan
         session.close()
 
 
-def get_default_presets() -> list[dict]:
+def _default_preset_seed_rows() -> list[dict]:
     return [
         {
             "preset_name": "conservative",
-            "vol_ratio_min": 0.75,
-            "vol_ratio_max": 1.25,
-            "range_pct_min": 0.50,
-            "range_pct_max": 0.90,
-            "price_action_max": 0.50,
+            "min_vol_ratio": 0.75,
+            "max_vol_ratio": 1.25,
+            "min_range_pct": 0.50,
+            "max_range_pct": 0.90,
+            "max_price_action": 0.50,
+            "require_not_ara": 1,
+            "score_weights_json": "{}",
+            "is_default": 0,
         },
         {
             "preset_name": "balanced",
-            "vol_ratio_min": 0.75,
-            "vol_ratio_max": 1.25,
-            "range_pct_min": 0.50,
-            "range_pct_max": 1.00,
-            "price_action_max": 0.70,
+            "min_vol_ratio": 0.75,
+            "max_vol_ratio": 1.25,
+            "min_range_pct": 0.50,
+            "max_range_pct": 1.00,
+            "max_price_action": 0.70,
+            "require_not_ara": 1,
+            "score_weights_json": "{}",
+            "is_default": 1,
         },
         {
             "preset_name": "aggressive",
-            "vol_ratio_min": 0.70,
-            "vol_ratio_max": 1.30,
-            "range_pct_min": 0.50,
-            "range_pct_max": 1.20,
-            "price_action_max": 0.80,
+            "min_vol_ratio": 0.70,
+            "max_vol_ratio": 1.30,
+            "min_range_pct": 0.50,
+            "max_range_pct": 1.20,
+            "max_price_action": 0.80,
+            "require_not_ara": 1,
+            "score_weights_json": "{}",
+            "is_default": 0,
         },
     ]
+
+
+def seed_default_presets() -> None:
+    session = SessionLocal()
+    try:
+        for seed in _default_preset_seed_rows():
+            existing = session.execute(
+                select(ScreeningPreset).where(ScreeningPreset.preset_name == seed["preset_name"])
+            ).scalar_one_or_none()
+            if existing is None:
+                session.add(ScreeningPreset(**seed))
+        session.commit()
+    finally:
+        session.close()
+
+
+def get_default_presets() -> list[dict]:
+    session = SessionLocal()
+    try:
+        rows = session.execute(select(ScreeningPreset)).scalars().all()
+        seed_order = {
+            item["preset_name"]: idx for idx, item in enumerate(_default_preset_seed_rows())
+        }
+        rows.sort(key=lambda row: seed_order.get(row.preset_name, 999))
+        if not rows:
+            return [
+                {
+                    "preset_name": "conservative",
+                    "vol_ratio_min": 0.75,
+                    "vol_ratio_max": 1.25,
+                    "range_pct_min": 0.50,
+                    "range_pct_max": 0.90,
+                    "price_action_max": 0.50,
+                },
+                {
+                    "preset_name": "balanced",
+                    "vol_ratio_min": 0.75,
+                    "vol_ratio_max": 1.25,
+                    "range_pct_min": 0.50,
+                    "range_pct_max": 1.00,
+                    "price_action_max": 0.70,
+                },
+                {
+                    "preset_name": "aggressive",
+                    "vol_ratio_min": 0.70,
+                    "vol_ratio_max": 1.30,
+                    "range_pct_min": 0.50,
+                    "range_pct_max": 1.20,
+                    "price_action_max": 0.80,
+                },
+            ]
+
+        return [
+            {
+                "preset_name": row.preset_name,
+                "vol_ratio_min": row.min_vol_ratio,
+                "vol_ratio_max": row.max_vol_ratio,
+                "range_pct_min": row.min_range_pct,
+                "range_pct_max": row.max_range_pct,
+                "price_action_max": row.max_price_action,
+            }
+            for row in rows
+        ]
+    finally:
+        session.close()
 
 
 def get_distribution(screen_date: str, preset: str) -> dict:
