@@ -76,6 +76,7 @@ class ScreeningPreset(Base):
 
 class JobRun(Base):
     __tablename__ = "job_runs"
+    __table_args__ = (UniqueConstraint("job_name", "run_date", "status", name="uq_job_runs_name_date_status"),)
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     job_name = Column(Text, nullable=False, default="daily-screening")

@@ -455,6 +455,20 @@ def try_start_job_run(run_date: str, started_at: str) -> bool:
         if success is not None:
             return False
 
+        existing_running_for_date = session.execute(
+            select(JobRun).where(
+                JobRun.job_name == "daily-screening",
+                JobRun.run_date == run_date,
+                JobRun.status == "running",
+            )
+        ).scalar_one_or_none()
+        if existing_running_for_date is not None:
+            existing_running_for_date.error_message = None
+            existing_running_for_date.started_at = started_at
+            existing_running_for_date.finished_at = None
+            session.commit()
+            return True
+
         session.add(
             JobRun(
                 job_name="daily-screening",
@@ -489,8 +503,19 @@ def _finish_job_run(run_date: str, finished_at: str, status: str, error_message:
         if running_row is None:
             return
 
+        existing_terminal = session.execute(
+            select(JobRun).where(
+                JobRun.job_name == "daily-screening",
+                JobRun.run_date == run_date,
+                JobRun.status == status,
+            )
+        ).scalar_one_or_none()
+
         running_row.finished_at = finished_at
-        started_at = running_row.started_at
+
+        if existing_terminal is not None:
+            session.commit()
+            return
 
         session.add(
             JobRun(
@@ -498,7 +523,7 @@ def _finish_job_run(run_date: str, finished_at: str, status: str, error_message:
                 run_date=run_date,
                 status=status,
                 error_message=error_message,
-                started_at=started_at,
+                started_at=running_row.started_at,
                 finished_at=finished_at,
                 rows_affected=running_row.rows_affected,
                 meta_json=running_row.meta_json,

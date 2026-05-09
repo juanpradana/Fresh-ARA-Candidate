@@ -1,4 +1,4 @@
-from sqlalchemy import select
+from sqlalchemy import select, text
 
 from app.backend.core.db import init_db, SessionLocal
 from app.backend.repositories.sqlite.models import JobRun, ScreeningPreset, Ticker
@@ -151,6 +151,52 @@ def test_job_run_status_transition_creates_audit_rows(tmp_path, monkeypatch):
             .order_by(JobRun.id.asc())
         ).scalars().all()
         statuses = [row.status for row in rows]
-        assert statuses == ["running", "failed", "running", "success"]
+        assert statuses == ["running", "failed", "success"]
+    finally:
+        session.close()
+
+
+def test_job_runs_has_unique_key_for_job_date_status(tmp_path, monkeypatch):
+    monkeypatch.setenv("APP_DB_PATH", str(tmp_path / "test.sqlite"))
+    init_db()
+
+    session = SessionLocal()
+    try:
+        rows = session.execute(text("PRAGMA index_list(job_runs)")).all()
+        unique_names = [row[1] for row in rows if int(row[2]) == 1]
+        indexed_columns: list[set[str]] = []
+        for name in unique_names:
+            cols = session.execute(text(f"PRAGMA index_info({name})")).all()
+            indexed_columns.append({str(col[2]) for col in cols})
+        assert {"job_name", "run_date", "status"} in indexed_columns
+    finally:
+        session.close()
+
+
+def test_finish_job_run_failed_is_idempotent_for_same_status(tmp_path, monkeypatch):
+    monkeypatch.setenv("APP_DB_PATH", str(tmp_path / "test.sqlite"))
+    init_db()
+
+    assert try_start_job_run(run_date="2026-05-09", started_at="2026-05-09T10:00:00") is True
+    finish_job_run_failed(
+        run_date="2026-05-09",
+        finished_at="2026-05-09T10:05:00",
+        error_message="first",
+    )
+    finish_job_run_failed(
+        run_date="2026-05-09",
+        finished_at="2026-05-09T10:06:00",
+        error_message="second",
+    )
+
+    session = SessionLocal()
+    try:
+        rows = session.execute(
+            select(JobRun)
+            .where(JobRun.run_date == "2026-05-09", JobRun.status == "failed")
+            .order_by(JobRun.id.asc())
+        ).scalars().all()
+        assert len(rows) == 1
+        assert rows[0].error_message == "first"
     finally:
         session.close()
