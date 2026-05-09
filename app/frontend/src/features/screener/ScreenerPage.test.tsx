@@ -68,6 +68,23 @@ function mockApiResponses() {
   });
 }
 
+test("applies terminal shell classes and typography separation hooks", async () => {
+  mockApiResponses();
+
+  render(<ScreenerPage />);
+
+  const shell = await screen.findByTestId("screener-shell");
+  expect(shell.className).toContain("bg-zinc-950");
+  expect(shell.className).toContain("text-zinc-100");
+
+  const uiHeading = screen.getByRole("heading", { name: "Fresh ARA Screener" });
+  expect(uiHeading.className).toContain("font-ui");
+
+  const dataRow = await screen.findByTestId("screener-row-BBRI.JK");
+  expect(dataRow.className).toContain("font-data");
+});
+
+
 test("shows screener title", async () => {
   mockApiResponses();
 

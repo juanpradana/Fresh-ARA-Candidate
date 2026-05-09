@@ -59,8 +59,8 @@ export function ScreenerPage() {
   }, []);
 
   return (
-    <div>
-      <h1>Fresh ARA Screener</h1>
+    <div data-testid="screener-shell" className="min-h-screen bg-zinc-950 text-zinc-100">
+      <h1 className="font-ui">Fresh ARA Screener</h1>
       <section>
         <h2>Data Freshness</h2>
         <p>Latest screen date: {filters.screenDate}</p>
@@ -122,7 +122,17 @@ export function ScreenerPage() {
           {latestRun.error_message && <p>Error: {latestRun.error_message}</p>}
         </section>
       )}
-      <ul>{rows.map((row, index) => <li key={`${row.ticker}-${index}`}>{row.ticker}</li>)}</ul>
+      <ul>
+        {rows.map((row, index) => (
+          <li
+            key={`${row.ticker}-${index}`}
+            data-testid={`screener-row-${row.ticker}`}
+            className="font-data"
+          >
+            {row.ticker}
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }
