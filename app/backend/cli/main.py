@@ -14,6 +14,7 @@ from app.backend.services.screening.service import is_fresh_ara_candidate
 from app.backend.services.universe.service import get_default_idx_universe
 from app.backend.repositories.sqlite.repo import (
     finish_job_run_failed,
+    finish_job_run_skipped,
     finish_job_run_success,
     try_start_job_run,
     upsert_screening_result,
@@ -112,6 +113,16 @@ def main() -> None:
         try:
             update_result = handle_update_market(args.date, args.batch_size, args.qps)
             if not update_result.get("is_complete", False):
+                expected = int(update_result.get("expected", 0))
+                fetched = int(update_result.get("fetched", 0))
+                if expected > 0 and fetched == 0:
+                    finish_job_run_skipped(
+                        run_date=args.date,
+                        finished_at=_now_iso(),
+                        message="no market data",
+                    )
+                    return
+
                 finish_job_run_failed(
                     run_date=args.date,
                     finished_at=_now_iso(),

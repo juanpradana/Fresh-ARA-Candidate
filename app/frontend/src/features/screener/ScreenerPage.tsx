@@ -118,7 +118,7 @@ export function ScreenerPage() {
         <section>
           <h2>Daily Job Status</h2>
           <p>Date: {latestRun.run_date}</p>
-          <p>Status: {latestRun.status}</p>
+          <p>Status: {latestRun.status === "skipped" ? "skipped (non-trading day)" : latestRun.status}</p>
           {latestRun.error_message && <p>Error: {latestRun.error_message}</p>}
         </section>
       )}

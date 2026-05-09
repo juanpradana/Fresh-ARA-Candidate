@@ -288,6 +288,22 @@ def finish_job_run_failed(run_date: str, finished_at: str, error_message: str) -
         session.close()
 
 
+def finish_job_run_skipped(run_date: str, finished_at: str, message: str) -> None:
+    session = SessionLocal()
+    try:
+        row = session.execute(
+            select(JobRun).where(JobRun.run_date == run_date)
+        ).scalar_one_or_none()
+        if row is None:
+            return
+        row.status = "skipped"
+        row.error_message = message
+        row.finished_at = finished_at
+        session.commit()
+    finally:
+        session.close()
+
+
 def get_recent_job_runs(limit: int = 10) -> list[dict]:
     session = SessionLocal()
     try:

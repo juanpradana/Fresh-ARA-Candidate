@@ -113,6 +113,67 @@ test("shows latest daily job status", async () => {
   expect(screen.getByText("Status: success")).toBeInTheDocument();
 });
 
+test("shows skipped label for non-trading day status", async () => {
+  vi.spyOn(globalThis, "fetch").mockImplementation(async (input: RequestInfo | URL) => {
+    const url = String(input);
+
+    if (url.includes("/api/v1/meta/latest-screen-date")) {
+      return {
+        json: async () => ({ data: { latest_screen_date: "2026-05-09" } }),
+      } as Response;
+    }
+
+    if (url.includes("/api/v1/meta/presets")) {
+      return {
+        json: async () => ({ data: [{ preset_name: "balanced" }] }),
+      } as Response;
+    }
+
+    if (url.includes("/api/v1/meta/data-freshness")) {
+      return {
+        json: async () => ({
+          data: {
+            latest_screen_date: "2026-05-09",
+            is_complete: true,
+            warning: null,
+          },
+        }),
+      } as Response;
+    }
+
+    if (url.includes("/api/v1/meta/job-runs")) {
+      return {
+        json: async () => ({
+          data: [
+            {
+              run_date: "2026-05-10",
+              status: "skipped",
+              error_message: "no market data",
+            },
+          ],
+        }),
+      } as Response;
+    }
+
+    if (url.includes("/api/v1/analytics/backtest")) {
+      return {
+        json: async () => ({ data: { win_rate: 0.0, avg_score: 0.0, total: 0 } }),
+      } as Response;
+    }
+
+    return {
+      json: async () => ({ data: [{ ticker: "BBRI.JK" }] }),
+    } as Response;
+  });
+
+  render(<ScreenerPage />);
+
+  expect(await screen.findByText("Daily Job Status")).toBeInTheDocument();
+  expect(screen.getByText("Date: 2026-05-10")).toBeInTheDocument();
+  expect(screen.getByText("Status: skipped (non-trading day)")).toBeInTheDocument();
+  expect(screen.getByText("Error: no market data")).toBeInTheDocument();
+});
+
 test("loads default preset and screen date from metadata", async () => {
   mockApiResponses();
 
