@@ -18,13 +18,13 @@
 
 ```bash
 python -m app.backend.cli.main backfill-market --start 2026-01-01 --end YYYY-MM-DD --qps 2 --batch-size 50
-python -m app.backend.cli.main run-daily --date YYYY-MM-DD --preset balanced --qps 2 --batch-size 50
+python -m app.backend.cli.main run-daily --date YYYY-MM-DD --preset balanced --qps 2 --batch-size 50 --universe-mode external_live
 ```
 
 ### 2) Rutinitas harian
 
 ```bash
-python -m app.backend.cli.main run-daily --date YYYY-MM-DD --preset balanced --qps 2 --batch-size 50
+python -m app.backend.cli.main run-daily --date YYYY-MM-DD --preset balanced --qps 2 --batch-size 50 --universe-mode external_live
 ```
 
 ### 3) Bandingkan preset
@@ -37,9 +37,9 @@ python -m app.backend.cli.main run-screening --date YYYY-MM-DD --preset aggressi
 ### 4) Recovery jika data kosong/tidak complete
 
 ```bash
-python -m app.backend.cli.main update-market --date YYYY-MM-DD --qps 1 --batch-size 50
-python -m app.backend.cli.main daily-smoke --date YYYY-MM-DD --qps 1 --batch-size 50
-python -m app.backend.cli.main run-daily --date YYYY-MM-DD --preset balanced --qps 1 --batch-size 50
+python -m app.backend.cli.main update-market --date YYYY-MM-DD --qps 1 --batch-size 50 --universe-mode external_live
+python -m app.backend.cli.main daily-smoke --date YYYY-MM-DD --qps 1 --batch-size 50 --universe-mode external_live
+python -m app.backend.cli.main run-daily --date YYYY-MM-DD --preset balanced --qps 1 --batch-size 50 --universe-mode external_live
 ```
 
 ## C. Verifikasi cepat

@@ -67,17 +67,17 @@ npm --prefix app/frontend run dev
 ### 3) Jalankan pipeline harian
 
 ```bash
-python -m app.backend.cli.main run-daily --date YYYY-MM-DD --preset balanced
+python -m app.backend.cli.main run-daily --date YYYY-MM-DD --preset balanced --universe-mode external_live
 ```
 
 ## Common CLI Commands
 
 ```bash
-python -m app.backend.cli.main update-market --date YYYY-MM-DD --batch-size 50 --qps 2
-python -m app.backend.cli.main backfill-market --start YYYY-MM-DD --end YYYY-MM-DD --qps 2
+python -m app.backend.cli.main update-market --date YYYY-MM-DD --batch-size 50 --qps 2 --universe-mode external_live
+python -m app.backend.cli.main backfill-market --start YYYY-MM-DD --end YYYY-MM-DD --qps 2 --batch-size 50
 python -m app.backend.cli.main compute-features --date YYYY-MM-DD --feature-version v1
 python -m app.backend.cli.main run-screening --date YYYY-MM-DD --preset balanced
-python -m app.backend.cli.main run-daily --date YYYY-MM-DD --preset balanced
+python -m app.backend.cli.main run-daily --date YYYY-MM-DD --preset balanced --universe-mode external_live
 python -m app.backend.cli.main schedule-screening --timezone Asia/Jakarta
 ```
 
@@ -122,7 +122,7 @@ Base path: `/api/v1`
 
 ```bash
 python -m app.backend.cli.main backfill-market --start 2026-01-01 --end YYYY-MM-DD --qps 2 --batch-size 50
-python -m app.backend.cli.main run-daily --date YYYY-MM-DD --preset balanced --qps 2 --batch-size 50
+python -m app.backend.cli.main run-daily --date YYYY-MM-DD --preset balanced --qps 2 --batch-size 50 --universe-mode external_live
 ```
 
 Kegunaan:
@@ -132,7 +132,7 @@ Kegunaan:
 ### 2) Operasional harian normal
 
 ```bash
-python -m app.backend.cli.main run-daily --date YYYY-MM-DD --preset balanced --qps 2 --batch-size 50
+python -m app.backend.cli.main run-daily --date YYYY-MM-DD --preset balanced --qps 2 --batch-size 50 --universe-mode external_live
 ```
 
 Kegunaan:
@@ -151,8 +151,8 @@ Kegunaan:
 ### 4) Recovery ketika data market belum lengkap/kosong
 
 ```bash
-python -m app.backend.cli.main update-market --date YYYY-MM-DD --qps 1 --batch-size 50
-python -m app.backend.cli.main daily-smoke --date YYYY-MM-DD --qps 1 --batch-size 50
+python -m app.backend.cli.main update-market --date YYYY-MM-DD --qps 1 --batch-size 50 --universe-mode external_live
+python -m app.backend.cli.main daily-smoke --date YYYY-MM-DD --qps 1 --batch-size 50 --universe-mode external_live
 ```
 
 Jika masih gagal:
