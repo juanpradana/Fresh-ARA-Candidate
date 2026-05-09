@@ -15,3 +15,8 @@ dist/
 
 # Environment
 .env
+.venv/
+
+# Local runtime artifacts
+.playwright-mcp/
+data/
