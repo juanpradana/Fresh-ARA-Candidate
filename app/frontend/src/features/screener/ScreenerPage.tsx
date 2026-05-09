@@ -7,10 +7,14 @@ import {
   getRecentJobRuns,
   getScreener,
   getScreenerCsvExportUrl,
+  getScreenerDetail,
+  getScreenerHistory,
   type BacktestSummary,
   type JobRun,
   type PresetMeta,
+  type ScreenerDetail,
   type ScreenerFilters,
+  type ScreenerHistoryRow,
   type ScreenerRow,
 } from "../../shared/api/client";
 
@@ -20,6 +24,9 @@ export function ScreenerPage() {
   const [latestRun, setLatestRun] = useState<JobRun | null>(null);
   const [presets, setPresets] = useState<PresetMeta[]>([]);
   const [freshnessWarning, setFreshnessWarning] = useState<string | null>(null);
+  const [selectedTicker, setSelectedTicker] = useState<string | null>(null);
+  const [selectedDetail, setSelectedDetail] = useState<ScreenerDetail>(null);
+  const [selectedHistory, setSelectedHistory] = useState<ScreenerHistoryRow[]>([]);
   const [filters, setFilters] = useState<ScreenerFilters>({
     screenDate: "",
     preset: "",
@@ -57,6 +64,31 @@ export function ScreenerPage() {
       loadData(nextFilters);
     });
   }, []);
+
+  useEffect(() => {
+    if (!selectedTicker) {
+      setSelectedDetail(null);
+      setSelectedHistory([]);
+      return;
+    }
+
+    getScreenerDetail({
+      ticker: selectedTicker,
+      screenDate: filters.screenDate,
+      preset: filters.preset,
+    }).then((detail) => {
+      setSelectedDetail(detail);
+    });
+
+    getScreenerHistory({
+      ticker: selectedTicker,
+      start: filters.start,
+      end: filters.end,
+      preset: filters.preset,
+    }).then((history) => {
+      setSelectedHistory(history);
+    });
+  }, [selectedTicker, filters.screenDate, filters.preset, filters.start, filters.end]);
 
   return (
     <div data-testid="screener-shell" className="min-h-screen bg-zinc-950 text-zinc-100">
@@ -128,11 +160,20 @@ export function ScreenerPage() {
             key={`${row.ticker}-${index}`}
             data-testid={`screener-row-${row.ticker}`}
             className="font-data"
+            onClick={() => setSelectedTicker(row.ticker)}
           >
             {row.ticker}
           </li>
         ))}
       </ul>
+      {selectedTicker && (
+        <section>
+          <h2>Selected Ticker</h2>
+          <p>{selectedTicker}</p>
+          {selectedDetail && <p>Detail score: {selectedDetail.score ?? "-"}</p>}
+          {selectedHistory.length > 0 && <p>History rows: {selectedHistory.length}</p>}
+        </section>
+      )}
     </div>
   );
 }

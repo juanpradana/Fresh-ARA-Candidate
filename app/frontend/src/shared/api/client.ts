@@ -1,4 +1,10 @@
-export type ScreenerRow = { ticker: string };
+export type ScreenerRow = {
+  ticker: string;
+  rank_num?: number;
+  score?: number;
+  pass_count?: number;
+  category?: string;
+};
 
 export type BacktestSummary = {
   win_rate: number;
@@ -27,6 +33,25 @@ export type DataFreshnessMeta = {
   latest_screen_date: string | null;
   is_complete: boolean;
   warning: string | null;
+};
+
+export type ScreenerDetail = {
+  ticker: string;
+  score?: number;
+  pass_count?: number;
+  category?: string;
+  pass_vol_ratio?: number;
+  pass_range_pct?: number;
+  pass_price_action?: number;
+  pass_is_ara_t0?: number;
+  reason_json?: string | null;
+} | null;
+
+export type ScreenerHistoryRow = {
+  screen_date?: string;
+  score?: number;
+  pass_count?: number;
+  category?: string;
 };
 
 export async function getScreener(filters: Pick<ScreenerFilters, "screenDate" | "preset">): Promise<ScreenerRow[]> {
@@ -122,6 +147,28 @@ export async function getDataFreshness(): Promise<DataFreshnessMeta> {
 export async function getPresets(): Promise<PresetMeta[]> {
   try {
     const res = await fetch("/api/v1/meta/presets");
+    const json = await res.json();
+    return Array.isArray(json?.data) ? json.data : [];
+  } catch {
+    return [];
+  }
+}
+
+export async function getScreenerDetail(params: { ticker: string; screenDate: string; preset: string }): Promise<ScreenerDetail> {
+  try {
+    const qs = new URLSearchParams({ screen_date: params.screenDate, preset: params.preset });
+    const res = await fetch(`/api/v1/screener/${params.ticker}?${qs.toString()}`);
+    const json = await res.json();
+    return json?.data ?? null;
+  } catch {
+    return null;
+  }
+}
+
+export async function getScreenerHistory(params: { ticker: string; start: string; end: string; preset: string }): Promise<ScreenerHistoryRow[]> {
+  try {
+    const qs = new URLSearchParams({ start: params.start, end: params.end, preset: params.preset });
+    const res = await fetch(`/api/v1/screener/${params.ticker}/history?${qs.toString()}`);
     const json = await res.json();
     return Array.isArray(json?.data) ? json.data : [];
   } catch {

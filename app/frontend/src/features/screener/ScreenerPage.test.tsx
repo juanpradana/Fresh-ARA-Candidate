@@ -423,3 +423,77 @@ test("applies selected filters to api calls and export link", async () => {
   const link = screen.getByRole("link", { name: "Export CSV" });
   expect(link).toHaveAttribute("href", "/api/v1/export/screener.csv?screen_date=2026-05-06&preset=aggressive");
 });
+
+
+test("loads detail and history when selecting ticker", async () => {
+  const calls: string[] = [];
+
+  vi.spyOn(globalThis, "fetch").mockImplementation(async (input: RequestInfo | URL) => {
+    const url = String(input);
+    calls.push(url);
+
+    if (url.includes("/api/v1/screener/BBRI.JK/history")) {
+      return {
+        json: async () => ({ data: [{ screen_date: "2026-05-07", score: 0.9 }] }),
+      } as Response;
+    }
+
+    if (url.includes("/api/v1/screener/BBRI.JK?")) {
+      return {
+        json: async () => ({
+          data: { ticker: "BBRI.JK", score: 0.9, pass_count: 4, category: "ideal" },
+        }),
+      } as Response;
+    }
+
+    if (url.includes("/api/v1/meta/latest-screen-date")) {
+      return {
+        json: async () => ({ data: { latest_screen_date: "2026-05-07" } }),
+      } as Response;
+    }
+
+    if (url.includes("/api/v1/meta/presets")) {
+      return {
+        json: async () => ({ data: [{ preset_name: "balanced" }] }),
+      } as Response;
+    }
+
+    if (url.includes("/api/v1/meta/data-freshness")) {
+      return {
+        json: async () => ({
+          data: {
+            latest_screen_date: "2026-05-07",
+            is_complete: true,
+            warning: null,
+          },
+        }),
+      } as Response;
+    }
+
+    if (url.includes("/api/v1/meta/job-runs")) {
+      return {
+        json: async () => ({ data: [] }),
+      } as Response;
+    }
+
+    if (url.includes("/api/v1/analytics/backtest")) {
+      return {
+        json: async () => ({ data: { win_rate: 0.5, avg_score: 0.8, total: 1 } }),
+      } as Response;
+    }
+
+    return {
+      json: async () => ({
+        data: [{ ticker: "BBRI.JK", score: 0.9, rank_num: 1, pass_count: 4, category: "ideal" }],
+      }),
+    } as Response;
+  });
+
+  render(<ScreenerPage />);
+  fireEvent.click(await screen.findByTestId("screener-row-BBRI.JK"));
+
+  await waitFor(() => {
+    expect(calls.some((url) => url.includes("/api/v1/screener/BBRI.JK?screen_date=2026-05-07&preset=balanced"))).toBe(true);
+    expect(calls.some((url) => url.includes("/api/v1/screener/BBRI.JK/history?start=2026-05-01&end=2026-05-31&preset=balanced"))).toBe(true);
+  });
+});
