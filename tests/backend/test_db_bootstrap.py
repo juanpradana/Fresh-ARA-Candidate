@@ -2,6 +2,7 @@ from sqlalchemy import select
 
 from app.backend.core.db import init_db, SessionLocal
 from app.backend.repositories.sqlite.models import JobRun, ScreeningPreset, Ticker
+from app.backend.repositories.sqlite.repo import try_start_job_run
 
 
 def test_init_db_creates_tables(tmp_path, monkeypatch):
@@ -95,3 +96,28 @@ def test_screening_presets_seeded_in_db(tmp_path, monkeypatch):
         assert balanced.require_not_ara == 1
     finally:
         session.close()
+
+
+def test_try_start_job_run_blocks_when_another_run_is_running(tmp_path, monkeypatch):
+    monkeypatch.setenv("APP_DB_PATH", str(tmp_path / "test.sqlite"))
+    init_db()
+    session = SessionLocal()
+    try:
+        session.add(
+            JobRun(
+                job_name="daily-screening",
+                run_date="2026-05-07",
+                status="running",
+                error_message=None,
+                started_at="2026-05-07T10:00:00",
+                finished_at=None,
+                rows_affected=0,
+                meta_json=None,
+            )
+        )
+        session.commit()
+    finally:
+        session.close()
+
+    started = try_start_job_run(run_date="2026-05-08", started_at="2026-05-08T10:00:00")
+    assert started is False

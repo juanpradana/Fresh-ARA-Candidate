@@ -435,11 +435,20 @@ def get_screener_csv_rows(screen_date: str | None, preset: str) -> list[dict]:
 def try_start_job_run(run_date: str, started_at: str) -> bool:
     session = SessionLocal()
     try:
+        running = session.execute(
+            select(JobRun).where(
+                JobRun.job_name == "daily-screening",
+                JobRun.status == "running",
+            )
+        ).scalar_one_or_none()
+        if running is not None:
+            return False
+
         existing = session.execute(
             select(JobRun).where(JobRun.run_date == run_date)
         ).scalar_one_or_none()
         if existing is not None:
-            if existing.status == "success":
+            if existing.status in {"success", "running"}:
                 return False
             existing.status = "running"
             existing.error_message = None
