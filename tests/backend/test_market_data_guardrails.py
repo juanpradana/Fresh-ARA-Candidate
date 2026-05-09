@@ -25,7 +25,7 @@ def test_rate_limiter_waits_for_qps(monkeypatch):
     assert sleeps and sleeps[0] > 0
 
 
-def test_retry_with_backoff_retries_then_succeeds(monkeypatch):
+def test_retry_with_backoff_retries_then_succeeds_for_transient_error(monkeypatch):
     attempts = {"count": 0}
     sleeps: list[float] = []
 
@@ -45,11 +45,42 @@ def test_retry_with_backoff_retries_then_succeeds(monkeypatch):
         max_delay=1.0,
         jitter_ratio=0.0,
         sleeper=fake_sleep,
+        should_retry=lambda exc: "429" in str(exc),
     )
 
     assert result == "ok"
     assert attempts["count"] == 3
     assert sleeps == [0.1, 0.2]
+
+
+def test_retry_with_backoff_does_not_retry_for_non_transient_error(monkeypatch):
+    attempts = {"count": 0}
+    sleeps: list[float] = []
+
+    def non_transient() -> str:
+        attempts["count"] += 1
+        raise ValueError("invalid ticker symbol")
+
+    def fake_sleep(seconds: float) -> None:
+        sleeps.append(seconds)
+
+    try:
+        retry_with_backoff(
+            operation=non_transient,
+            max_attempts=3,
+            base_delay=0.1,
+            max_delay=1.0,
+            jitter_ratio=0.0,
+            sleeper=fake_sleep,
+            should_retry=lambda exc: "429" in str(exc),
+        )
+    except ValueError as exc:
+        assert "invalid ticker symbol" in str(exc)
+    else:
+        raise AssertionError("expected ValueError")
+
+    assert attempts["count"] == 1
+    assert sleeps == []
 
 
 def test_circuit_breaker_opens_after_failures(monkeypatch):

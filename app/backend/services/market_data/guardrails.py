@@ -4,6 +4,8 @@ from random import random
 from time import monotonic, sleep
 from typing import Callable, Generic, TypeVar
 
+TransientRetryPolicy = Callable[[Exception], bool]
+
 T = TypeVar("T")
 
 
@@ -93,11 +95,14 @@ def retry_with_backoff(
     max_delay: float,
     jitter_ratio: float,
     sleeper: Callable[[float], None] = sleep,
+    should_retry: TransientRetryPolicy | None = None,
 ) -> T:
     for attempt in range(1, max_attempts + 1):
         try:
             return operation()
-        except Exception:
+        except Exception as exc:
+            if should_retry is not None and not should_retry(exc):
+                raise
             if attempt >= max_attempts:
                 raise
             delay = min(max_delay, base_delay * (2 ** (attempt - 1)))

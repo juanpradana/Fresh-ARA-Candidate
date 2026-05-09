@@ -8,6 +8,13 @@ from app.backend.services.market_data.guardrails import (
 )
 
 
+def _is_transient_market_error(exc: Exception) -> bool:
+    message = str(exc)
+    if "429" in message:
+        return True
+    return any(str(status_code) in message for status_code in range(500, 600))
+
+
 def fetch_daily_market_data(
     ticker: str,
     date: str,
@@ -60,6 +67,7 @@ def fetch_daily_market_data(
             base_delay=base_delay,
             max_delay=max_delay,
             jitter_ratio=jitter_ratio,
+            should_retry=_is_transient_market_error,
         )
         if breaker is not None:
             breaker.record_success()
