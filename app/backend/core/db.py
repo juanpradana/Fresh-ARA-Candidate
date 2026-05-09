@@ -36,6 +36,27 @@ def _ensure_job_runs_columns(bind_engine: Engine) -> None:
             connection.exec_driver_sql(f"ALTER TABLE job_runs ADD COLUMN {column_name} {column_ddl}")
 
 
+def _ensure_screening_results_columns(bind_engine: Engine) -> None:
+    required_columns = {
+        "feature_date": "TEXT NOT NULL DEFAULT ''",
+        "pass_vol_ratio": "INTEGER NOT NULL DEFAULT 0",
+        "pass_range_pct": "INTEGER NOT NULL DEFAULT 0",
+        "pass_price_action": "INTEGER NOT NULL DEFAULT 0",
+        "pass_is_ara_t0": "INTEGER NOT NULL DEFAULT 0",
+        "reason_json": "TEXT",
+    }
+
+    with bind_engine.begin() as connection:
+        rows = connection.exec_driver_sql("PRAGMA table_info(screening_results)").fetchall()
+        if not rows:
+            return
+        existing = {str(row[1]) for row in rows}
+        for column_name, column_ddl in required_columns.items():
+            if column_name in existing:
+                continue
+            connection.exec_driver_sql(f"ALTER TABLE screening_results ADD COLUMN {column_name} {column_ddl}")
+
+
 def init_db() -> None:
     from app.backend.repositories.sqlite import models
 
@@ -44,3 +65,4 @@ def init_db() -> None:
     SessionLocal.configure(bind=engine)
     Base.metadata.create_all(bind=engine)
     _ensure_job_runs_columns(engine)
+    _ensure_screening_results_columns(engine)

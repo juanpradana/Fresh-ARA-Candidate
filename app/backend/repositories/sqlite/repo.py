@@ -13,6 +13,12 @@ def upsert_screening_result(
     score: float,
     pass_count: int,
     category: str,
+    feature_date: str | None = None,
+    pass_vol_ratio: int = 0,
+    pass_range_pct: int = 0,
+    pass_price_action: int = 0,
+    pass_is_ara_t0: int = 0,
+    reason_json: str | None = None,
 ) -> None:
     session = SessionLocal()
     try:
@@ -26,8 +32,14 @@ def upsert_screening_result(
 
         if existing is not None:
             existing.score = score
+            existing.feature_date = feature_date or screen_date
+            existing.pass_vol_ratio = pass_vol_ratio
+            existing.pass_range_pct = pass_range_pct
+            existing.pass_price_action = pass_price_action
+            existing.pass_is_ara_t0 = pass_is_ara_t0
             existing.pass_count = pass_count
             existing.category = category
+            existing.reason_json = reason_json
             existing.rank_num = 1
         else:
             ticker_row = session.execute(
@@ -39,12 +51,18 @@ def upsert_screening_result(
             session.add(
                 ScreeningResult(
                     screen_date=screen_date,
+                    feature_date=feature_date or screen_date,
                     ticker=ticker,
                     preset_name=preset_name,
                     score=score,
                     rank_num=1,
+                    pass_vol_ratio=pass_vol_ratio,
+                    pass_range_pct=pass_range_pct,
+                    pass_price_action=pass_price_action,
+                    pass_is_ara_t0=pass_is_ara_t0,
                     pass_count=pass_count,
                     category=category,
+                    reason_json=reason_json,
                 )
             )
 

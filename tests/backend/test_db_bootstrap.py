@@ -40,3 +40,39 @@ def test_job_runs_model_has_prd_columns(tmp_path, monkeypatch):
         assert row.meta_json == "{}"
     finally:
         session.close()
+
+
+def test_screening_results_model_has_prd_columns(tmp_path, monkeypatch):
+    monkeypatch.setenv("APP_DB_PATH", str(tmp_path / "test.sqlite"))
+    init_db()
+    session = SessionLocal()
+    try:
+        from app.backend.repositories.sqlite.models import ScreeningResult
+
+        session.add(
+            ScreeningResult(
+                screen_date="2026-05-09",
+                feature_date="2026-05-09",
+                ticker="BBCA.JK",
+                preset_name="balanced",
+                score=0.91,
+                rank_num=1,
+                pass_vol_ratio=1,
+                pass_range_pct=1,
+                pass_price_action=1,
+                pass_is_ara_t0=1,
+                pass_count=4,
+                category="ideal",
+                reason_json='{"rule":"balanced"}',
+            )
+        )
+        session.commit()
+        row = session.execute(select(ScreeningResult).where(ScreeningResult.ticker == "BBCA.JK")).scalar_one()
+        assert row.feature_date == "2026-05-09"
+        assert row.pass_vol_ratio == 1
+        assert row.pass_range_pct == 1
+        assert row.pass_price_action == 1
+        assert row.pass_is_ara_t0 == 1
+        assert row.reason_json == '{"rule":"balanced"}'
+    finally:
+        session.close()

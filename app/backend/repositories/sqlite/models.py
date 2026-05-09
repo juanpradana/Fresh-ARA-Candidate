@@ -45,12 +45,18 @@ class ScreeningResult(Base):
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     screen_date = Column(Text, nullable=False)
+    feature_date = Column(Text, nullable=False, default="")
     ticker = Column(Text, nullable=False)
     preset_name = Column(Text, nullable=False)
     score = Column(Float, nullable=False)
     rank_num = Column(Integer, nullable=False)
+    pass_vol_ratio = Column(Integer, nullable=False, default=0)
+    pass_range_pct = Column(Integer, nullable=False, default=0)
+    pass_price_action = Column(Integer, nullable=False, default=0)
+    pass_is_ara_t0 = Column(Integer, nullable=False, default=0)
     pass_count = Column(Integer, nullable=False)
     category = Column(Text, nullable=False)
+    reason_json = Column(Text, nullable=True)
 
 
 class JobRun(Base):
