@@ -73,13 +73,17 @@ Out of scope:
 - Surfaces: subtle contrast elevation + thin borders (no heavy glass effects)
 
 ### Typography and spacing
-- Compact headings, readable body text
-- Numeric emphasis with tabular alignment style
+- UI typography and data typography are explicitly separated.
+- UI text (headings, labels, helper text) uses a clean sans-serif stack for readability.
+- Data text (rank, ticker code, score, pass_count, percentages, status metrics) uses a monospace/tabular stack for scan speed and vertical alignment.
+- Numeric emphasis remains tabular-aligned for fast comparison.
 - Spacing scale kept consistent and minimal to support dense tables
 
 ### Interactive states
 - Strong keyboard focus rings
 - Clear row hover and selected states before drawer open
+- Selected row uses a subtle border-glow accent to anchor focus.
+- Non-selected rows use mild dimming when a selection is active, preserving context while emphasizing the active ticker.
 - Lightweight skeleton/loading states and deterministic empty states
 
 ## Component Blueprint
@@ -147,6 +151,7 @@ Displays total candidates, ideal count, top score, latest job status.
 - Drawer open + detail/history rendering
 - Freshness warning and disclaimer visibility
 - Export URL composition from active filters
+- Latency simulation coverage: delayed responses for screener/meta/detail/history/backtest to verify loading states, non-blocking partial render, and stable interaction under slow network conditions
 
 ### Backend regression continuity
 - Keep `pytest -q` green as API contract safety net while frontend evolves
