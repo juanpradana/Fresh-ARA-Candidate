@@ -74,6 +74,16 @@ def test_ticker_detail_and_history_exist():
     assert history.status_code == 200
     history_body = history.json()
     assert isinstance(history_body["data"], list)
+    if history_body["data"]:
+        first = history_body["data"][0]
+        assert "vol_ratio" in first
+        assert "range_pct" in first
+        assert "price_action" in first
+        assert "is_ara_t0" in first
+        assert "pass_vol_ratio" in first
+        assert "pass_range_pct" in first
+        assert "pass_price_action" in first
+        assert "pass_is_ara_t0" in first
 
 
 def test_meta_presets_returns_default_presets():
