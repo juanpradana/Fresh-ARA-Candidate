@@ -125,6 +125,17 @@ def test_analytics_backtest_supports_top_n_query_param():
     assert "precision_at_top_n" in body["data"]
 
 
+def test_invalid_pagination_and_top_n_params_return_422():
+    invalid_limit = client.get("/api/v1/screener?screen_date=2026-05-06&preset=balanced&limit=0&offset=0")
+    assert invalid_limit.status_code == 422
+
+    invalid_offset = client.get("/api/v1/screener?screen_date=2026-05-06&preset=balanced&limit=10&offset=-1")
+    assert invalid_offset.status_code == 422
+
+    invalid_top_n = client.get("/api/v1/analytics/backtest?start=2026-05-01&end=2026-05-31&preset=balanced&top_n=0")
+    assert invalid_top_n.status_code == 422
+
+
 def test_export_screener_csv_returns_file_content():
     res = client.get("/api/v1/export/screener.csv?screen_date=2026-05-06&preset=balanced")
     assert res.status_code == 200
