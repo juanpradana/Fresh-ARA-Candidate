@@ -42,7 +42,26 @@ python -m app.backend.cli.main daily-smoke --date YYYY-MM-DD --qps 1 --batch-siz
 python -m app.backend.cli.main run-daily --date YYYY-MM-DD --preset balanced --qps 1 --batch-size 50 --universe-mode external_live
 ```
 
-## C. Verifikasi cepat
+## C. Parameter penting (ringkas)
+
+- `--date`: tanggal target proses (`YYYY-MM-DD`).
+- `--start` / `--end`: rentang tanggal untuk backfill.
+- `--preset`: preset screening (`conservative`, `balanced`, `aggressive`).
+- `--qps`: request per detik ke sumber market (atur ke bawah jika throttling/error meningkat).
+- `--batch-size`: jumlah ticker per batch proses (lebih kecil = lebih stabil, lebih lambat).
+- `--universe-mode`: mode universe ticker (`external_live` direkomendasikan untuk cakupan luas).
+- `--timezone`: timezone scheduler otomatis.
+
+## D. Status output yang perlu diperhatikan
+
+- `update-market`
+  - Jika incomplete: `[ALERT][MARKET] date=... fetched=... expected=... source=...`
+- `daily-smoke`
+  - Sukses: `[SMOKE][OK] ...`
+  - Skip: `[SMOKE][SKIPPED] ...`
+  - Alert: `[SMOKE][ALERT] ...`
+
+## E. Verifikasi cepat
 
 - Backend tests: `pytest -q`
 - Frontend tests: `npm --prefix app/frontend run test`

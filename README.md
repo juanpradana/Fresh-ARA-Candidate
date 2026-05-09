@@ -78,8 +78,159 @@ python -m app.backend.cli.main backfill-market --start YYYY-MM-DD --end YYYY-MM-
 python -m app.backend.cli.main compute-features --date YYYY-MM-DD --feature-version v1
 python -m app.backend.cli.main run-screening --date YYYY-MM-DD --preset balanced
 python -m app.backend.cli.main run-daily --date YYYY-MM-DD --preset balanced --universe-mode external_live
+python -m app.backend.cli.main daily-smoke --date YYYY-MM-DD --batch-size 50 --qps 2 --universe-mode external_live
 python -m app.backend.cli.main schedule-screening --timezone Asia/Jakarta
 ```
+
+## CLI Reference (Lengkap)
+
+Base command:
+
+```bash
+python -m app.backend.cli.main <command> [options]
+```
+
+### 1) `update-market`
+
+Fungsi:
+- Ambil data market harian per ticker dari Yahoo Finance untuk tanggal tertentu.
+- Menulis data ke `price_daily`.
+- Menampilkan alert CLI jika hasil tidak complete.
+
+Contoh:
+
+```bash
+python -m app.backend.cli.main update-market --date 2026-05-08 --batch-size 50 --qps 2 --universe-mode external_live
+```
+
+Opsi:
+- `--date` (required): tanggal target (`YYYY-MM-DD`).
+- `--batch-size` (default `50`): jumlah ticker per batch proses.
+- `--qps` (default `2.0`): laju request per detik ke sumber market.
+- `--universe-mode` (default `external_live`): mode universe ticker (`external_live` atau fallback internal).
+
+Output penting:
+- Jika incomplete: `[ALERT][MARKET] date=... fetched=... expected=... source=...`
+
+### 2) `backfill-market`
+
+Fungsi:
+- Menjalankan `update-market` berulang untuk rentang tanggal.
+- Dipakai untuk bootstrap/recovery histori data market.
+
+Contoh:
+
+```bash
+python -m app.backend.cli.main backfill-market --start 2026-01-01 --end 2026-05-08 --qps 2 --batch-size 50
+```
+
+Opsi:
+- `--start` (required): tanggal awal (`YYYY-MM-DD`).
+- `--end` (required): tanggal akhir (`YYYY-MM-DD`).
+- `--qps` (default `2.0`): laju request per detik.
+- `--batch-size` (default `50`): jumlah ticker per batch.
+
+Catatan:
+- Tidak perlu full backfill ulang jika data rentang tersebut sudah lengkap.
+
+### 3) `compute-features`
+
+Fungsi:
+- Hitung feature harian dari data market yang sudah ada.
+
+Contoh:
+
+```bash
+python -m app.backend.cli.main compute-features --date 2026-05-08 --feature-version v1
+```
+
+Opsi:
+- `--date` (required): tanggal target (`YYYY-MM-DD`).
+- `--feature-version` (default `v1`): versi feature pipeline.
+
+### 4) `run-screening`
+
+Fungsi:
+- Menjalankan scoring dan screening untuk tanggal + preset tertentu.
+
+Contoh:
+
+```bash
+python -m app.backend.cli.main run-screening --date 2026-05-08 --preset balanced
+```
+
+Opsi:
+- `--date` (required): tanggal target (`YYYY-MM-DD`).
+- `--preset` (default `balanced`): `conservative`, `balanced`, atau `aggressive`.
+
+### 5) `run-daily`
+
+Fungsi:
+- Orkestrasi full pipeline harian end-to-end:
+  1. `update-market`
+  2. `compute-features`
+  3. `run-screening`
+  4. capture alerts
+- Menulis status job run + metadata observability (`expected`, `fetched`, `tickers_*`, `universe_*`).
+
+Contoh:
+
+```bash
+python -m app.backend.cli.main run-daily --date 2026-05-08 --preset balanced --batch-size 50 --qps 2 --universe-mode external_live
+```
+
+Opsi:
+- `--date` (required): tanggal target (`YYYY-MM-DD`).
+- `--preset` (default `balanced`): preset screening.
+- `--batch-size` (default `50`): ukuran batch untuk tahap update market.
+- `--qps` (default `2.0`): laju request per detik untuk tahap update market.
+- `--universe-mode` (default `external_live`): mode universe ticker.
+
+Perilaku status:
+- `success`: data market complete + screening selesai.
+- `failed`: data market partial/incomplete atau exception pipeline.
+- `skipped`: tidak ada market data pada tanggal run.
+
+### 6) `daily-smoke`
+
+Fungsi:
+- Menjalankan smoke check cepat flow harian dan memberi sinyal operasional di terminal.
+
+Contoh:
+
+```bash
+python -m app.backend.cli.main daily-smoke --date 2026-05-08 --batch-size 50 --qps 2 --universe-mode external_live
+```
+
+Opsi:
+- `--date` (required): tanggal target (`YYYY-MM-DD`).
+- `--batch-size` (default `50`): ukuran batch update market.
+- `--qps` (default `2.0`): laju request per detik.
+- `--universe-mode` (default `external_live`): mode universe ticker.
+
+Output penting:
+- `[SMOKE][OK] run_date=...`
+- `[SMOKE][SKIPPED] run_date=... reason=...`
+- `[SMOKE][ALERT] run_date=... error=...`
+
+### 7) `schedule-screening`
+
+Fungsi:
+- Menyalakan scheduler otomatis berbasis APScheduler.
+- Job harian memanggil flow `run-daily` (balanced, qps 2.0, batch 50).
+
+Contoh:
+
+```bash
+python -m app.backend.cli.main schedule-screening --timezone Asia/Jakarta
+```
+
+Opsi:
+- `--timezone` (default `Asia/Jakarta`): timezone scheduler.
+
+Catatan operasional:
+- Scheduler berjalan in-process; proses CLI harus tetap hidup.
+- Trigger saat ini di-set jam 18:00 pada timezone yang dipilih.
 
 ## API Highlights
 
