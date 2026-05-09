@@ -389,3 +389,55 @@ def test_daily_smoke_prints_alert_and_exits_for_failure(monkeypatch, capsys):
     assert exc.value.code == 1
     output = capsys.readouterr().out
     assert "[SMOKE][ALERT] run_date=2026-05-12 error=market source unavailable" in output
+
+
+def test_run_daily_records_job_run_failed_on_exception_with_metrics(monkeypatch):
+    calls: list[str] = []
+
+    def fake_init_db() -> None:
+        calls.append("init")
+
+    def fake_start(run_date: str, started_at: str) -> bool:
+        calls.append(f"start:{run_date}")
+        return True
+
+    def fake_success(run_date: str, finished_at: str, rows_affected: int = 0, meta_json: str | None = None) -> None:
+        calls.append(f"success:{run_date}:{rows_affected}:{meta_json}")
+
+    def fake_failed(
+        run_date: str,
+        finished_at: str,
+        error_message: str,
+        rows_affected: int = 0,
+        meta_json: str | None = None,
+    ) -> None:
+        calls.append(f"failed:{run_date}:{error_message}:{rows_affected}:{meta_json}")
+
+    def fake_update(date: str, batch_size: int, qps: float) -> dict:
+        calls.append(f"update:{date}:{batch_size}:{qps}")
+        return {"is_complete": True, "expected": 9, "fetched": 4}
+
+    def boom_compute(date: str, feature_version: str) -> None:
+        calls.append(f"compute:{date}:{feature_version}")
+        raise RuntimeError("compute exploded")
+
+    monkeypatch.setattr("app.backend.cli.main.init_db", fake_init_db, raising=False)
+    monkeypatch.setattr("app.backend.cli.main.try_start_job_run", fake_start, raising=False)
+    monkeypatch.setattr("app.backend.cli.main.finish_job_run_success", fake_success, raising=False)
+    monkeypatch.setattr("app.backend.cli.main.finish_job_run_failed", fake_failed, raising=False)
+    monkeypatch.setattr("app.backend.cli.main.handle_update_market", fake_update, raising=False)
+    monkeypatch.setattr("app.backend.cli.main.handle_compute_features", boom_compute, raising=False)
+    monkeypatch.setattr("app.backend.cli.main.handle_run_screening", lambda date, preset: None, raising=False)
+    monkeypatch.setattr("sys.argv", ["cli", "run-daily", "--date", "2026-05-13"])
+
+    with pytest.raises(RuntimeError) as exc:
+        cli_main()
+
+    assert "compute exploded" in str(exc.value)
+    assert calls == [
+        "init",
+        "start:2026-05-13",
+        "update:2026-05-13:50:2.0",
+        "compute:2026-05-13:v1",
+        'failed:2026-05-13:compute exploded:4:{"expected":9,"fetched":4,"preset":"balanced"}',
+    ]

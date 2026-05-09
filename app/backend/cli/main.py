@@ -62,6 +62,8 @@ def handle_run_daily(date: str, preset: str, batch_size: int, qps: float, raise_
     if not started:
         return {"status": "skipped", "error": "already running or already executed"}
 
+    fetched = 0
+    meta_json = json.dumps({"expected": 0, "fetched": 0, "preset": preset}, separators=(",", ":"))
     try:
         update_result = handle_update_market(date, batch_size, qps)
         expected = int(update_result.get("expected", 0))
@@ -102,6 +104,8 @@ def handle_run_daily(date: str, preset: str, batch_size: int, qps: float, raise_
             run_date=date,
             finished_at=_now_iso(),
             error_message=str(exc),
+            rows_affected=fetched,
+            meta_json=meta_json,
         )
         if raise_on_error:
             raise
