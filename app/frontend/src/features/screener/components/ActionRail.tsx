@@ -40,6 +40,7 @@ export function ActionRail({
           Screen Date
           <input
             id="screen-date"
+            type="date"
             className={inputClass}
             value={filters.screenDate}
             onChange={(event) => onChangeFilters({ ...filters, screenDate: event.target.value })}
@@ -50,6 +51,7 @@ export function ActionRail({
           Backtest Start
           <input
             id="start-date"
+            type="date"
             className={inputClass}
             value={filters.start}
             onChange={(event) => onChangeFilters({ ...filters, start: event.target.value })}
@@ -60,6 +62,7 @@ export function ActionRail({
           Backtest End
           <input
             id="end-date"
+            type="date"
             className={inputClass}
             value={filters.end}
             onChange={(event) => onChangeFilters({ ...filters, end: event.target.value })}

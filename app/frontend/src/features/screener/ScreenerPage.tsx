@@ -146,7 +146,7 @@ export function ScreenerPage() {
           selectedTicker={selectedTicker}
           onSelect={setSelectedTicker}
         />
-        <ScreenerCardListSection rows={rows} />
+        <ScreenerCardListSection rows={rows} selectedTicker={selectedTicker} onSelect={setSelectedTicker} />
         {selectedTicker && (
           <section data-testid="inline-detail-panel" className="rounded-lg border border-zinc-800 bg-zinc-900/70 p-3">
             <TickerDetailDrawer

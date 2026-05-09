@@ -25,8 +25,16 @@ export function ScreenerTableSection({
             <li
               key={`${row.ticker}-${index}`}
               data-testid={`screener-row-${row.ticker}`}
-              className={`${rowClass} cursor-pointer rounded-md border-zinc-800 bg-zinc-950/40 px-3 py-2 text-sm transition hover:bg-zinc-900/80`}
+              className={`${rowClass} cursor-pointer rounded-md border-zinc-800 bg-zinc-950/40 px-3 py-2 text-sm transition hover:bg-zinc-900/80 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-emerald-400`}
+              tabIndex={0}
+              role="button"
               onClick={() => onSelect(row.ticker)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" || event.key === " ") {
+                  event.preventDefault();
+                  onSelect(row.ticker);
+                }
+              }}
             >
               <div className="flex items-center justify-between gap-3">
                 <span>{row.ticker}</span>
