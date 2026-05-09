@@ -439,7 +439,14 @@ def try_start_job_run(run_date: str, started_at: str) -> bool:
             select(JobRun).where(JobRun.run_date == run_date)
         ).scalar_one_or_none()
         if existing is not None:
-            return False
+            if existing.status == "success":
+                return False
+            existing.status = "running"
+            existing.error_message = None
+            existing.started_at = started_at
+            existing.finished_at = None
+            session.commit()
+            return True
 
         session.add(
             JobRun(

@@ -54,7 +54,7 @@ def test_run_daily_job_writes_success_log(monkeypatch, tmp_path):
     assert result["skipped"] is False
 
 
-def test_run_daily_job_skips_when_lock_exists(monkeypatch, tmp_path):
+def test_run_daily_job_retries_same_date_after_failure(monkeypatch, tmp_path):
     monkeypatch.setenv("APP_DB_PATH", str(tmp_path / "scheduler.sqlite"))
 
     first_call = {"entered": False}
@@ -70,8 +70,8 @@ def test_run_daily_job_skips_when_lock_exists(monkeypatch, tmp_path):
     second = run_daily_job("2026-05-07")
 
     assert first["status"] == "failed"
-    assert second["status"] == "skipped"
-    assert second["skipped"] is True
+    assert second["status"] == "success"
+    assert second["skipped"] is False
 
 
 def test_run_daily_job_persists_error_status(monkeypatch, tmp_path):
