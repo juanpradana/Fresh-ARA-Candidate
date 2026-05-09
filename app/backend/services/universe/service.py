@@ -17,6 +17,8 @@ def _normalize_ticker(raw: object) -> str | None:
     value = raw.strip().upper()
     if not value:
         return None
+    if "." in value and not value.endswith(".JK"):
+        return None
     if not value.endswith(".JK"):
         value = f"{value}.JK"
     return value
@@ -34,25 +36,25 @@ def _sanitize_tickers(raw_tickers: list[object]) -> list[str]:
     return cleaned
 
 
-def get_external_live_idx_universe(max_results: int = 500) -> list[str]:
+def get_external_live_idx_universe(max_results: int = 250) -> list[str]:
     try:
-        search = yf.Search(
-            query=".JK",
-            max_results=max_results,
-            news_count=0,
-            lists_count=0,
-            include_cb=False,
-            include_nav_links=False,
-            include_research=False,
-            include_cultural_assets=False,
-            recommended=0,
-            raise_errors=False,
-        )
+        frame = yf.Lookup("Indonesia", raise_errors=False).get_stock(count=max_results)
     except Exception:
         return []
 
-    quotes = getattr(search, "quotes", []) or []
-    symbols = [item.get("symbol") for item in quotes if isinstance(item, dict)]
+    if getattr(frame, "empty", True):
+        return []
+
+    symbols: list[str] = []
+    for symbol, row in frame.iterrows():
+        exchange = str(row.get("exchange", "")).upper()
+        quote_type = str(row.get("quoteType", "")).lower()
+        if exchange != "JKT":
+            continue
+        if quote_type != "equity":
+            continue
+        symbols.append(str(symbol))
+
     return _sanitize_tickers(symbols)
 
 
