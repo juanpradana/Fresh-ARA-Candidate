@@ -8,6 +8,7 @@ Web screener read-only saham Indonesia untuk kandidat **Fresh ARA** berbasis pol
 - Screener API + analytics + export: ✅
 - Watchlist + alert event flow + KPI baseline: ✅
 - Frontend screener (responsive + PWA-ready): ✅
+- Strategy revision (dynamic preset + fresh filter + tiered scoring + extended backtest metrics): ✅
 
 ## Scope v1
 
@@ -106,6 +107,14 @@ Base path: `/api/v1`
   - `POST /watchlists/{watchlist_name}/tickers`
   - `DELETE /watchlists/{watchlist_name}/tickers/{ticker}`
   - `GET /alerts/recent`
+
+## Screening Strategy (Current)
+
+- Preset threshold diterapkan dinamis di core screening (`conservative`, `balanced`, `aggressive`).
+- `vol_ratio` menggunakan basis `avg_volume_5d` bila tersedia.
+- Fresh filter aktif: `days_since_last_ara >= 5`.
+- Price action menggunakan tiered scoring (`1.0 / 0.8 / 0.6 / 0.0`).
+- Backtest endpoint menyediakan metrik tambahan: `hit_rate_1d`, `hit_rate_3d`, `avg_score_hit`, `avg_score_miss`, `distribution_by_pass_count`.
 
 ## Testing
 

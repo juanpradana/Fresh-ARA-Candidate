@@ -44,6 +44,8 @@ export type ScreenerDetail = {
   pass_range_pct?: number;
   pass_price_action?: number;
   pass_is_ara_t0?: number;
+  days_since_last_ara?: number;
+  score_price_action?: number;
   reason_json?: string | null;
 } | null;
 
@@ -52,6 +54,8 @@ export type ScreenerHistoryRow = {
   score?: number;
   pass_count?: number;
   category?: string;
+  days_since_last_ara?: number;
+  score_price_action?: number;
 };
 
 export type WatchlistTickerRow = {
