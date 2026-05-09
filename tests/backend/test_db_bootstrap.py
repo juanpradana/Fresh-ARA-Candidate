@@ -163,12 +163,14 @@ def test_job_runs_has_unique_key_for_job_date_status(tmp_path, monkeypatch):
     session = SessionLocal()
     try:
         rows = session.execute(text("PRAGMA index_list(job_runs)")).all()
+        index_names = {str(row[1]) for row in rows}
         unique_names = [row[1] for row in rows if int(row[2]) == 1]
         indexed_columns: list[set[str]] = []
         for name in unique_names:
             cols = session.execute(text(f"PRAGMA index_info({name})")).all()
             indexed_columns.append({str(col[2]) for col in cols})
         assert {"job_name", "run_date", "status"} in indexed_columns
+        assert "idx_job_runs_name_date" in index_names
     finally:
         session.close()
 

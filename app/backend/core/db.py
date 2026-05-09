@@ -73,6 +73,9 @@ def _ensure_job_runs_unique_key(bind_engine: Engine) -> None:
             unique_columns.append({str(col[2]) for col in cols})
 
         if {"job_name", "run_date", "status"} in unique_columns:
+            connection.exec_driver_sql(
+                "CREATE INDEX IF NOT EXISTS idx_job_runs_name_date ON job_runs (job_name, run_date)"
+            )
             return
 
         connection.exec_driver_sql(
