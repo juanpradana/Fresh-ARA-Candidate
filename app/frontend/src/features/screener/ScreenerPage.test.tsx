@@ -36,6 +36,18 @@ function mockApiResponses() {
       } as Response;
     }
 
+    if (url.includes("/api/v1/meta/data-freshness")) {
+      return {
+        json: async () => ({
+          data: {
+            latest_screen_date: "2026-05-07",
+            is_complete: true,
+            warning: null,
+          },
+        }),
+      } as Response;
+    }
+
     if (url.includes("/api/v1/meta/job-runs")) {
       return {
         json: async () => ({
@@ -126,6 +138,149 @@ test("shows probabilistic disclaimer", async () => {
 
   expect(await screen.findByText("Disclaimer")).toBeInTheDocument();
   expect(screen.getByText("Sinyal bersifat probabilistik, bukan jaminan hasil.")).toBeInTheDocument();
+});
+
+test("shows data freshness warning when eod is incomplete", async () => {
+  vi.spyOn(globalThis, "fetch").mockImplementation(async (input: RequestInfo | URL) => {
+    const url = String(input);
+
+    if (url.includes("/api/v1/meta/latest-screen-date")) {
+      return {
+        json: async () => ({ data: { latest_screen_date: "2026-05-07" } }),
+      } as Response;
+    }
+
+    if (url.includes("/api/v1/meta/presets")) {
+      return {
+        json: async () => ({
+          data: [
+            { preset_name: "conservative" },
+            { preset_name: "balanced" },
+            { preset_name: "aggressive" },
+          ],
+        }),
+      } as Response;
+    }
+
+    if (url.includes("/api/v1/meta/data-freshness")) {
+      return {
+        json: async () => ({
+          data: {
+            latest_screen_date: "2026-05-07",
+            is_complete: false,
+            warning: "Data EOD belum complete",
+          },
+        }),
+      } as Response;
+    }
+
+    if (url.includes("/api/v1/analytics/backtest")) {
+      return {
+        json: async () => ({ data: { win_rate: 0.5, avg_score: 0.81, total: 2 } }),
+      } as Response;
+    }
+
+    if (url.includes("/api/v1/meta/job-runs")) {
+      return {
+        json: async () => ({
+          data: [{ run_date: "2026-05-07", status: "success", error_message: null }],
+        }),
+      } as Response;
+    }
+
+    return {
+      json: async () => ({ data: [{ ticker: "BBRI.JK" }] }),
+    } as Response;
+  });
+
+  render(<ScreenerPage />);
+
+  expect(await screen.findByText("Warning: Data EOD belum complete")).toBeInTheDocument();
+});
+
+test("falls back safely when metadata endpoints fail", async () => {
+  vi.spyOn(globalThis, "fetch").mockImplementation(async (input: RequestInfo | URL) => {
+    const url = String(input);
+
+    if (url.includes("/api/v1/meta/latest-screen-date")) {
+      return {
+        json: async () => ({ data: null }),
+      } as Response;
+    }
+
+    if (url.includes("/api/v1/meta/presets")) {
+      return {
+        json: async () => ({ data: [] }),
+      } as Response;
+    }
+
+    if (url.includes("/api/v1/meta/data-freshness")) {
+      return {
+        json: async () => ({ data: null }),
+      } as Response;
+    }
+
+    if (url.includes("/api/v1/analytics/backtest")) {
+      return {
+        json: async () => ({ data: { win_rate: 0.0, avg_score: 0.0, total: 0 } }),
+      } as Response;
+    }
+
+    if (url.includes("/api/v1/meta/job-runs")) {
+      return {
+        json: async () => ({ data: [] }),
+      } as Response;
+    }
+
+    return {
+      json: async () => ({ data: [] }),
+    } as Response;
+  });
+
+  render(<ScreenerPage />);
+
+  expect(await screen.findByText("Fresh ARA Screener")).toBeInTheDocument();
+  expect(screen.getByText("Latest screen date: 2026-05-06")).toBeInTheDocument();
+  expect(screen.getByRole("link", { name: "Export CSV" })).toHaveAttribute(
+    "href",
+    "/api/v1/export/screener.csv?screen_date=2026-05-06&preset=balanced",
+  );
+});
+
+test("stays stable when screener and analytics endpoints fail", async () => {
+  vi.spyOn(globalThis, "fetch").mockImplementation(async (input: RequestInfo | URL) => {
+    const url = String(input);
+
+    if (url.includes("/api/v1/meta/latest-screen-date")) {
+      return {
+        json: async () => ({ data: { latest_screen_date: null } }),
+      } as Response;
+    }
+
+    if (url.includes("/api/v1/meta/presets")) {
+      return {
+        json: async () => ({ data: [] }),
+      } as Response;
+    }
+
+    if (url.includes("/api/v1/meta/data-freshness")) {
+      return {
+        json: async () => ({ data: null }),
+      } as Response;
+    }
+
+    return {
+      ok: false,
+      status: 404,
+      json: async () => ({ error: "not found" }),
+    } as Response;
+  });
+
+  render(<ScreenerPage />);
+
+  expect(await screen.findByText("Fresh ARA Screener")).toBeInTheDocument();
+  expect(screen.getByText("Latest screen date: 2026-05-06")).toBeInTheDocument();
+  expect(screen.queryByText("Backtest Summary")).not.toBeInTheDocument();
 });
 
 test("applies selected filters to api calls and export link", async () => {

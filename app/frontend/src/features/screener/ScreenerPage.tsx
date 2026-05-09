@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import {
   getBacktestSummary,
+  getDataFreshness,
   getLatestScreenDate,
   getPresets,
   getRecentJobRuns,
@@ -18,6 +19,7 @@ export function ScreenerPage() {
   const [backtest, setBacktest] = useState<BacktestSummary | null>(null);
   const [latestRun, setLatestRun] = useState<JobRun | null>(null);
   const [presets, setPresets] = useState<PresetMeta[]>([]);
+  const [freshnessWarning, setFreshnessWarning] = useState<string | null>(null);
   const [filters, setFilters] = useState<ScreenerFilters>({
     screenDate: "",
     preset: "",
@@ -26,13 +28,19 @@ export function ScreenerPage() {
   });
 
   const loadData = (nextFilters: ScreenerFilters) => {
-    getScreener({ screenDate: nextFilters.screenDate, preset: nextFilters.preset }).then(setRows);
-    getBacktestSummary({ start: nextFilters.start, end: nextFilters.end, preset: nextFilters.preset }).then(setBacktest);
-    getRecentJobRuns(1).then((runs) => setLatestRun(runs[0] ?? null));
+    getScreener({ screenDate: nextFilters.screenDate, preset: nextFilters.preset }).then((result) => {
+      setRows(Array.isArray(result) ? result : []);
+    });
+    getBacktestSummary({ start: nextFilters.start, end: nextFilters.end, preset: nextFilters.preset }).then((result) => {
+      setBacktest(result);
+    });
+    getRecentJobRuns(1).then((runs) => {
+      setLatestRun(Array.isArray(runs) ? (runs[0] ?? null) : null);
+    });
   };
 
   useEffect(() => {
-    Promise.all([getLatestScreenDate(), getPresets()]).then(([latestDate, presetRows]) => {
+    Promise.all([getLatestScreenDate(), getPresets(), getDataFreshness()]).then(([latestDate, presetRows, freshness]) => {
       const defaultPreset = presetRows.find((item) => item.preset_name === "balanced")?.preset_name
         ?? presetRows[0]?.preset_name
         ?? "balanced";
@@ -45,6 +53,7 @@ export function ScreenerPage() {
       };
       setPresets(presetRows);
       setFilters(nextFilters);
+      setFreshnessWarning(freshness.warning);
       loadData(nextFilters);
     });
   }, []);
@@ -55,6 +64,7 @@ export function ScreenerPage() {
       <section>
         <h2>Data Freshness</h2>
         <p>Latest screen date: {filters.screenDate}</p>
+        {freshnessWarning && <p>Warning: {freshnessWarning}</p>}
       </section>
       <section>
         <h2>Disclaimer</h2>
