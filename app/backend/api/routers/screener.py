@@ -10,6 +10,7 @@ from app.backend.repositories.sqlite.repo import (
     get_backtest_summary,
     get_default_presets,
     get_distribution,
+    get_kpi_summary,
     get_latest_screen_date,
     get_recent_job_runs,
     get_screener_csv_rows,
@@ -105,6 +106,24 @@ def analytics_backtest(
             "end": end,
             "preset": preset,
             "top_n": top_n,
+        },
+        "error": None,
+    }
+
+
+@router.get("/analytics/kpi")
+def analytics_kpi(
+    start: str = Query(...),
+    end: str = Query(...),
+    preset: str = Query(default="balanced"),
+) -> dict:
+    init_db()
+    return {
+        "data": get_kpi_summary(start=start, end=end, preset=preset),
+        "meta": {
+            "start": start,
+            "end": end,
+            "preset": preset,
         },
         "error": None,
     }

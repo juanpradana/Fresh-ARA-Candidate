@@ -87,3 +87,40 @@ class JobRun(Base):
     finished_at = Column(Text, nullable=True)
     rows_affected = Column(Integer, nullable=False, default=0)
     meta_json = Column(Text, nullable=True)
+
+
+class Watchlist(Base):
+    __tablename__ = "watchlists"
+    __table_args__ = (UniqueConstraint("watchlist_name", "ticker", name="uq_watchlists_name_ticker"),)
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    watchlist_name = Column(Text, nullable=False)
+    ticker = Column(Text, nullable=False)
+
+
+class AlertEvent(Base):
+    __tablename__ = "alert_events"
+    __table_args__ = (
+        UniqueConstraint("run_date", "watchlist_name", "ticker", "preset", name="uq_alert_events_run_watchlist_ticker_preset"),
+    )
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    run_date = Column(Text, nullable=False)
+    watchlist_name = Column(Text, nullable=False)
+    ticker = Column(Text, nullable=False)
+    preset = Column(Text, nullable=False)
+    created_at = Column(Text, nullable=False)
+
+
+class KpiDailySnapshot(Base):
+    __tablename__ = "kpi_daily_snapshots"
+    __table_args__ = (UniqueConstraint("run_date", "preset", name="uq_kpi_daily_run_preset"),)
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    run_date = Column(Text, nullable=False)
+    preset = Column(Text, nullable=False)
+    precision_at_top_n = Column(Float, nullable=False, default=0.0)
+    screener_views = Column(Integer, nullable=False, default=0)
+    alerts_views = Column(Integer, nullable=False, default=0)
+    watchlist_views = Column(Integer, nullable=False, default=0)
+    created_at = Column(Text, nullable=False)

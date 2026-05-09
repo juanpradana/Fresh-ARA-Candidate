@@ -54,6 +54,27 @@ export type ScreenerHistoryRow = {
   category?: string;
 };
 
+export type WatchlistTickerRow = {
+  watchlist_name: string;
+  ticker: string;
+};
+
+export type AlertEventRow = {
+  run_date: string;
+  watchlist_name: string;
+  ticker: string;
+  preset: string;
+  created_at: string;
+};
+
+export type KpiSummary = {
+  total_days: number;
+  avg_precision_at_top_n: number;
+  total_screener_views: number;
+  total_alerts_views: number;
+  total_watchlist_views: number;
+};
+
 export async function getScreener(filters: Pick<ScreenerFilters, "screenDate" | "preset">): Promise<ScreenerRow[]> {
   try {
     const params = new URLSearchParams({
@@ -181,5 +202,71 @@ export async function getScreenerHistory(params: { ticker: string; start: string
     return Array.isArray(json?.data) ? json.data : [];
   } catch {
     return [];
+  }
+}
+
+export async function getWatchlistTickers(watchlistName = "default"): Promise<WatchlistTickerRow[]> {
+  try {
+    const res = await fetch(`/api/v1/watchlists/${watchlistName}/tickers`);
+    const json = await res.json();
+    return Array.isArray(json?.data) ? json.data : [];
+  } catch {
+    return [];
+  }
+}
+
+export async function addWatchlistTicker(ticker: string, watchlistName = "default"): Promise<boolean> {
+  try {
+    const res = await fetch(`/api/v1/watchlists/${watchlistName}/tickers`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ ticker }),
+    });
+    return typeof res.ok === "boolean" ? res.ok : true;
+  } catch {
+    return false;
+  }
+}
+
+export async function removeWatchlistTicker(ticker: string, watchlistName = "default"): Promise<boolean> {
+  try {
+    const res = await fetch(`/api/v1/watchlists/${watchlistName}/tickers/${ticker}`, {
+      method: "DELETE",
+    });
+    return typeof res.ok === "boolean" ? res.ok : true;
+  } catch {
+    return false;
+  }
+}
+
+export async function getRecentAlerts(limit = 5): Promise<AlertEventRow[]> {
+  try {
+    const qs = new URLSearchParams({ limit: String(limit) });
+    const res = await fetch(`/api/v1/alerts/recent?${qs.toString()}`);
+    const json = await res.json();
+    return Array.isArray(json?.data) ? json.data : [];
+  } catch {
+    return [];
+  }
+}
+
+export async function getKpiSummary(start: string, end: string, preset: string): Promise<KpiSummary | null> {
+  try {
+    const qs = new URLSearchParams({ start, end, preset });
+    const res = await fetch(`/api/v1/analytics/kpi?${qs.toString()}`);
+    const json = await res.json();
+    const data = json?.data;
+    if (!data) {
+      return null;
+    }
+    return {
+      total_days: Number(data.total_days ?? 0),
+      avg_precision_at_top_n: Number(data.avg_precision_at_top_n ?? 0),
+      total_screener_views: Number(data.total_screener_views ?? 0),
+      total_alerts_views: Number(data.total_alerts_views ?? 0),
+      total_watchlist_views: Number(data.total_watchlist_views ?? 0),
+    };
+  } catch {
+    return null;
   }
 }

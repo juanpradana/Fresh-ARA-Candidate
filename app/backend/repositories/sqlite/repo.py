@@ -3,7 +3,7 @@ from sqlalchemy import and_, func, select
 from statistics import mean
 
 from app.backend.core.db import SessionLocal
-from app.backend.repositories.sqlite.models import FeatureDaily, JobRun, PriceDaily, ScreeningPreset, ScreeningResult, Ticker
+from app.backend.repositories.sqlite.models import AlertEvent, FeatureDaily, JobRun, KpiDailySnapshot, PriceDaily, ScreeningPreset, ScreeningResult, Ticker, Watchlist
 
 
 def upsert_screening_result(
@@ -618,6 +618,76 @@ def get_recent_job_runs(limit: int = 10) -> list[dict]:
         session.close()
 
 
+def list_watchlists() -> list[dict]:
+    session = SessionLocal()
+    try:
+        rows = session.execute(
+            select(Watchlist.watchlist_name)
+            .distinct()
+            .order_by(Watchlist.watchlist_name.asc())
+        ).all()
+        return [{"watchlist_name": str(name)} for (name,) in rows]
+    finally:
+        session.close()
+
+
+def list_watchlist_tickers(watchlist_name: str) -> list[dict]:
+    session = SessionLocal()
+    try:
+        rows = session.execute(
+            select(Watchlist)
+            .where(Watchlist.watchlist_name == watchlist_name)
+            .order_by(Watchlist.ticker.asc())
+        ).scalars().all()
+        return [
+            {
+                "watchlist_name": row.watchlist_name,
+                "ticker": row.ticker,
+            }
+            for row in rows
+        ]
+    finally:
+        session.close()
+
+
+def add_watchlist_ticker(watchlist_name: str, ticker: str) -> dict:
+    session = SessionLocal()
+    try:
+        existing = session.execute(
+            select(Watchlist).where(
+                Watchlist.watchlist_name == watchlist_name,
+                Watchlist.ticker == ticker,
+            )
+        ).scalar_one_or_none()
+        if existing is None:
+            session.add(Watchlist(watchlist_name=watchlist_name, ticker=ticker))
+            session.commit()
+        return {
+            "watchlist_name": watchlist_name,
+            "ticker": ticker,
+        }
+    finally:
+        session.close()
+
+
+def remove_watchlist_ticker(watchlist_name: str, ticker: str) -> bool:
+    session = SessionLocal()
+    try:
+        existing = session.execute(
+            select(Watchlist).where(
+                Watchlist.watchlist_name == watchlist_name,
+                Watchlist.ticker == ticker,
+            )
+        ).scalar_one_or_none()
+        if existing is None:
+            return False
+        session.delete(existing)
+        session.commit()
+        return True
+    finally:
+        session.close()
+
+
 def has_price_daily(trade_date: str, ticker: str) -> bool:
     session = SessionLocal()
     try:
@@ -780,5 +850,139 @@ def get_feature_rows_by_date(trade_date: str, feature_version: str = "v1") -> li
             }
             for row in rows
         ]
+    finally:
+        session.close()
+
+
+def get_screening_tickers(screen_date: str, preset: str = "balanced") -> list[str]:
+    session = SessionLocal()
+    try:
+        rows = session.execute(
+            select(ScreeningResult.ticker)
+            .where(
+                ScreeningResult.screen_date == screen_date,
+                ScreeningResult.preset_name == preset,
+            )
+            .order_by(ScreeningResult.ticker.asc())
+        ).all()
+        return [str(ticker) for (ticker,) in rows]
+    finally:
+        session.close()
+
+
+def create_alert_event(run_date: str, watchlist_name: str, ticker: str, preset: str, created_at: str) -> bool:
+    session = SessionLocal()
+    try:
+        existing = session.execute(
+            select(AlertEvent).where(
+                AlertEvent.run_date == run_date,
+                AlertEvent.watchlist_name == watchlist_name,
+                AlertEvent.ticker == ticker,
+                AlertEvent.preset == preset,
+            )
+        ).scalar_one_or_none()
+        if existing is not None:
+            return False
+        session.add(
+            AlertEvent(
+                run_date=run_date,
+                watchlist_name=watchlist_name,
+                ticker=ticker,
+                preset=preset,
+                created_at=created_at,
+            )
+        )
+        session.commit()
+        return True
+    finally:
+        session.close()
+
+
+def list_alert_events(limit: int = 20) -> list[dict]:
+    session = SessionLocal()
+    try:
+        rows = session.execute(
+            select(AlertEvent)
+            .order_by(AlertEvent.created_at.desc(), AlertEvent.id.desc())
+            .limit(limit)
+        ).scalars().all()
+        return [
+            {
+                "run_date": row.run_date,
+                "watchlist_name": row.watchlist_name,
+                "ticker": row.ticker,
+                "preset": row.preset,
+                "created_at": row.created_at,
+            }
+            for row in rows
+        ]
+    finally:
+        session.close()
+
+
+def create_kpi_daily_snapshot(
+    run_date: str,
+    preset: str,
+    precision_at_top_n: float,
+    screener_views: int,
+    alerts_views: int,
+    watchlist_views: int,
+    created_at: str | None = None,
+) -> bool:
+    session = SessionLocal()
+    try:
+        existing = session.execute(
+            select(KpiDailySnapshot).where(
+                KpiDailySnapshot.run_date == run_date,
+                KpiDailySnapshot.preset == preset,
+            )
+        ).scalar_one_or_none()
+        if existing is not None:
+            return False
+        session.add(
+            KpiDailySnapshot(
+                run_date=run_date,
+                preset=preset,
+                precision_at_top_n=precision_at_top_n,
+                screener_views=screener_views,
+                alerts_views=alerts_views,
+                watchlist_views=watchlist_views,
+                created_at=created_at or run_date,
+            )
+        )
+        session.commit()
+        return True
+    finally:
+        session.close()
+
+
+def get_kpi_summary(start: str, end: str, preset: str) -> dict:
+    session = SessionLocal()
+    try:
+        rows = session.execute(
+            select(KpiDailySnapshot).where(
+                KpiDailySnapshot.run_date >= start,
+                KpiDailySnapshot.run_date <= end,
+                KpiDailySnapshot.preset == preset,
+            )
+        ).scalars().all()
+        if not rows:
+            return {
+                "total_days": 0,
+                "avg_precision_at_top_n": 0.0,
+                "total_screener_views": 0,
+                "total_alerts_views": 0,
+                "total_watchlist_views": 0,
+            }
+
+        total_days = len(rows)
+        avg_precision = sum(row.precision_at_top_n for row in rows) / total_days
+        return {
+            "total_days": total_days,
+            "avg_precision_at_top_n": round(avg_precision, 4),
+            "total_screener_views": int(sum(row.screener_views for row in rows)),
+            "total_alerts_views": int(sum(row.alerts_views for row in rows)),
+            "total_watchlist_views": int(sum(row.watchlist_views for row in rows)),
+        }
     finally:
         session.close()

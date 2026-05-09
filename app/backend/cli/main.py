@@ -9,6 +9,7 @@ from app.backend.cli.commands.run_screening import handle_run_screening
 from app.backend.cli.commands.schedule_screening import handle_schedule_screening
 from app.backend.cli.commands.update_market import handle_update_market
 from app.backend.core.db import init_db
+from app.backend.services.alerts.service import capture_watchlist_alerts
 from app.backend.services.feature_engineering.service import compute_features
 from app.backend.services.market_data.service import fetch_daily_market_data
 from app.backend.services.scoring.service import score_candidate
@@ -120,6 +121,7 @@ def handle_run_daily(date: str, preset: str, batch_size: int, qps: float, raise_
 
         handle_compute_features(date, "v1")
         handle_run_screening(date, preset)
+        capture_watchlist_alerts(run_date=date, preset=preset)
         finish_job_run_success(
             run_date=date,
             finished_at=_now_iso(),

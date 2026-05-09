@@ -62,6 +62,32 @@ function mockApiResponses() {
       } as Response;
     }
 
+    if (url.includes("/api/v1/watchlists/default/tickers")) {
+      return {
+        json: async () => ({ data: [] }),
+      } as Response;
+    }
+
+    if (url.includes("/api/v1/alerts/recent")) {
+      return {
+        json: async () => ({ data: [] }),
+      } as Response;
+    }
+
+    if (url.includes("/api/v1/analytics/kpi")) {
+      return {
+        json: async () => ({
+          data: {
+            total_days: 0,
+            avg_precision_at_top_n: 0,
+            total_screener_views: 0,
+            total_alerts_views: 0,
+            total_watchlist_views: 0,
+          },
+        }),
+      } as Response;
+    }
+
     return {
       json: async () => ({ data: [{ ticker: "BBRI.JK" }, { ticker: "BBCA.JK" }] }),
     } as Response;
@@ -809,4 +835,96 @@ test("shows install-ready hint in ui shell", async () => {
   render(<ScreenerPage />);
 
   expect(await screen.findByText("Installable PWA ready")).toBeInTheDocument();
+});
+
+
+test("shows watchlist, alerts, and kpi roadmap panels", async () => {
+  vi.spyOn(globalThis, "fetch").mockImplementation(async (input: RequestInfo | URL) => {
+    const url = String(input);
+
+    if (url.includes("/api/v1/meta/latest-screen-date")) {
+      return {
+        json: async () => ({ data: { latest_screen_date: "2026-05-21" } }),
+      } as Response;
+    }
+
+    if (url.includes("/api/v1/meta/presets")) {
+      return {
+        json: async () => ({ data: [{ preset_name: "balanced" }] }),
+      } as Response;
+    }
+
+    if (url.includes("/api/v1/meta/data-freshness")) {
+      return {
+        json: async () => ({
+          data: {
+            latest_screen_date: "2026-05-21",
+            is_complete: true,
+            warning: null,
+          },
+        }),
+      } as Response;
+    }
+
+    if (url.includes("/api/v1/meta/job-runs")) {
+      return {
+        json: async () => ({ data: [] }),
+      } as Response;
+    }
+
+    if (url.includes("/api/v1/analytics/backtest")) {
+      return {
+        json: async () => ({ data: { win_rate: 0.5, avg_score: 0.8, total: 1 } }),
+      } as Response;
+    }
+
+    if (url.includes("/api/v1/watchlists/default/tickers")) {
+      return {
+        json: async () => ({ data: [{ watchlist_name: "default", ticker: "BBCA.JK" }] }),
+      } as Response;
+    }
+
+    if (url.includes("/api/v1/alerts/recent")) {
+      return {
+        json: async () => ({
+          data: [
+            {
+              run_date: "2026-05-21",
+              watchlist_name: "default",
+              ticker: "BBCA.JK",
+              preset: "balanced",
+              created_at: "2026-05-21T18:00:00",
+            },
+          ],
+        }),
+      } as Response;
+    }
+
+    if (url.includes("/api/v1/analytics/kpi")) {
+      return {
+        json: async () => ({
+          data: {
+            total_days: 2,
+            avg_precision_at_top_n: 0.75,
+            total_screener_views: 18,
+            total_alerts_views: 3,
+            total_watchlist_views: 5,
+          },
+        }),
+      } as Response;
+    }
+
+    return {
+      json: async () => ({ data: [{ ticker: "BBCA.JK" }] }),
+    } as Response;
+  });
+
+  render(<ScreenerPage />);
+
+  const watchlistHeading = await screen.findByText("Watchlist (default)");
+  expect(watchlistHeading).toBeInTheDocument();
+  expect(screen.getByText("Recent Alerts")).toBeInTheDocument();
+  expect(screen.getAllByText("BBCA.JK").length).toBeGreaterThan(0);
+  expect(screen.getByText("KPI Baseline")).toBeInTheDocument();
+  expect(screen.getByText("Avg Precision@TopN: 0.75")).toBeInTheDocument();
 });

@@ -1,22 +1,30 @@
 import { useEffect, useState } from "react";
 import {
+  addWatchlistTicker,
   getBacktestSummary,
   getDataFreshness,
+  getKpiSummary,
   getLatestScreenDate,
   getPresets,
+  getRecentAlerts,
   getRecentJobRuns,
   getScreener,
   getScreenerCsvExportUrl,
   getScreenerXlsxExportUrl,
   getScreenerDetail,
   getScreenerHistory,
+  getWatchlistTickers,
+  removeWatchlistTicker,
+  type AlertEventRow,
   type BacktestSummary,
   type JobRun,
+  type KpiSummary,
   type PresetMeta,
   type ScreenerDetail,
   type ScreenerFilters,
   type ScreenerHistoryRow,
   type ScreenerRow,
+  type WatchlistTickerRow,
 } from "../../shared/api/client";
 import { ScreenerTopBar } from "./components/ScreenerTopBar";
 import { SummaryStrip } from "./components/SummaryStrip";
@@ -35,6 +43,9 @@ export function ScreenerPage() {
   const [selectedTicker, setSelectedTicker] = useState<string | null>(null);
   const [selectedDetail, setSelectedDetail] = useState<ScreenerDetail>(null);
   const [selectedHistory, setSelectedHistory] = useState<ScreenerHistoryRow[]>([]);
+  const [watchlistRows, setWatchlistRows] = useState<WatchlistTickerRow[]>([]);
+  const [alerts, setAlerts] = useState<AlertEventRow[]>([]);
+  const [kpi, setKpi] = useState<KpiSummary | null>(null);
   const [isLoadingRows, setIsLoadingRows] = useState(true);
   const [filters, setFilters] = useState<ScreenerFilters>({
     screenDate: "",
@@ -54,6 +65,15 @@ export function ScreenerPage() {
     });
     getRecentJobRuns(1).then((runs) => {
       setLatestRun(Array.isArray(runs) ? (runs[0] ?? null) : null);
+    });
+    getWatchlistTickers("default").then((result) => {
+      setWatchlistRows(Array.isArray(result) ? result : []);
+    });
+    getRecentAlerts(5).then((result) => {
+      setAlerts(Array.isArray(result) ? result : []);
+    });
+    getKpiSummary(nextFilters.start, nextFilters.end, nextFilters.preset).then((result) => {
+      setKpi(result);
     });
   };
 
@@ -140,6 +160,72 @@ export function ScreenerPage() {
           totalCandidates={rows.length}
           idealCount={rows.filter((row) => row.category === "ideal").length}
         />
+        <div className="grid gap-3 lg:grid-cols-3">
+          <section className="rounded-lg border border-zinc-800 bg-zinc-900/50 p-3">
+            <h2 className="text-sm font-medium text-zinc-200">Watchlist (default)</h2>
+            {watchlistRows.length === 0 ? (
+              <p className="mt-2 text-sm text-zinc-400">No watchlist tickers.</p>
+            ) : (
+              <ul className="mt-2 space-y-1 text-sm text-zinc-300">
+                {watchlistRows.map((row) => (
+                  <li key={`${row.watchlist_name}-${row.ticker}`} className="flex items-center justify-between gap-2">
+                    <span>{row.ticker}</span>
+                    <button
+                      className="rounded border border-zinc-700 px-2 py-0.5 text-xs text-zinc-300"
+                      onClick={() => {
+                        removeWatchlistTicker(row.ticker, "default").then((ok) => {
+                          if (ok) {
+                            getWatchlistTickers("default").then((result) => setWatchlistRows(Array.isArray(result) ? result : []));
+                          }
+                        });
+                      }}
+                    >
+                      Remove
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+            {selectedTicker && (
+              <button
+                className="mt-2 rounded border border-emerald-400 px-2 py-1 text-xs text-emerald-300"
+                onClick={() => {
+                  addWatchlistTicker(selectedTicker, "default").then((ok) => {
+                    if (ok) {
+                      getWatchlistTickers("default").then((result) => setWatchlistRows(Array.isArray(result) ? result : []));
+                    }
+                  });
+                }}
+              >
+                Add selected ({selectedTicker})
+              </button>
+            )}
+          </section>
+          <section className="rounded-lg border border-zinc-800 bg-zinc-900/50 p-3">
+            <h2 className="text-sm font-medium text-zinc-200">Recent Alerts</h2>
+            {alerts.length === 0 ? (
+              <p className="mt-2 text-sm text-zinc-400">No alerts yet.</p>
+            ) : (
+              <ul className="mt-2 space-y-1 text-sm text-zinc-300">
+                {alerts.map((row, index) => (
+                  <li key={`${row.ticker}-${row.run_date}-${index}`}>
+                    {row.ticker} · {row.run_date}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+          <section className="rounded-lg border border-zinc-800 bg-zinc-900/50 p-3">
+            <h2 className="text-sm font-medium text-zinc-200">KPI Baseline</h2>
+            <div className="mt-2 space-y-1 text-sm text-zinc-300">
+              <p>Days: {kpi?.total_days ?? 0}</p>
+              <p>Avg Precision@TopN: {(kpi?.avg_precision_at_top_n ?? 0).toFixed(2)}</p>
+              <p>Screener Views: {kpi?.total_screener_views ?? 0}</p>
+              <p>Alerts Views: {kpi?.total_alerts_views ?? 0}</p>
+              <p>Watchlist Views: {kpi?.total_watchlist_views ?? 0}</p>
+            </div>
+          </section>
+        </div>
         {isLoadingRows && <p className="text-sm text-zinc-400">Loading screener...</p>}
         <ScreenerTableSection
           rows={rows}
