@@ -508,7 +508,68 @@ test("loads detail and history when selecting ticker", async () => {
 });
 
 test("applies selected-row glow and dims non-selected rows", async () => {
-  mockApiResponses();
+  const calls: string[] = [];
+
+  vi.spyOn(globalThis, "fetch").mockImplementation(async (input: RequestInfo | URL) => {
+    const url = String(input);
+    calls.push(url);
+
+    if (url.includes("/api/v1/screener/BBRI.JK/history")) {
+      return {
+        json: async () => ({ data: [{ screen_date: "2026-05-07", score: 0.9 }] }),
+      } as Response;
+    }
+
+    if (url.includes("/api/v1/screener/BBRI.JK?")) {
+      return {
+        json: async () => ({
+          data: { ticker: "BBRI.JK", score: 0.9, pass_count: 4, category: "ideal" },
+        }),
+      } as Response;
+    }
+
+    if (url.includes("/api/v1/analytics/backtest")) {
+      return {
+        json: async () => ({
+          data: { win_rate: 0.5, avg_score: 0.81, total: 2 },
+        }),
+      } as Response;
+    }
+
+    if (url.includes("/api/v1/meta/latest-screen-date")) {
+      return {
+        json: async () => ({ data: { latest_screen_date: "2026-05-07" } }),
+      } as Response;
+    }
+
+    if (url.includes("/api/v1/meta/presets")) {
+      return {
+        json: async () => ({ data: [{ preset_name: "balanced" }] }),
+      } as Response;
+    }
+
+    if (url.includes("/api/v1/meta/data-freshness")) {
+      return {
+        json: async () => ({
+          data: {
+            latest_screen_date: "2026-05-07",
+            is_complete: true,
+            warning: null,
+          },
+        }),
+      } as Response;
+    }
+
+    if (url.includes("/api/v1/meta/job-runs")) {
+      return {
+        json: async () => ({ data: [] }),
+      } as Response;
+    }
+
+    return {
+      json: async () => ({ data: [{ ticker: "BBRI.JK" }, { ticker: "BBCA.JK" }] }),
+    } as Response;
+  });
 
   render(<ScreenerPage />);
 
@@ -516,6 +577,11 @@ test("applies selected-row glow and dims non-selected rows", async () => {
   const otherRow = screen.getByTestId("screener-row-BBCA.JK");
 
   fireEvent.click(selectedRow);
+
+  await waitFor(() => {
+    expect(calls.some((url) => url.includes("/api/v1/screener/BBRI.JK?screen_date=2026-05-07&preset=balanced"))).toBe(true);
+    expect(calls.some((url) => url.includes("/api/v1/screener/BBRI.JK/history?start=2026-05-01&end=2026-05-31&preset=balanced"))).toBe(true);
+  });
 
   expect(selectedRow.className).toContain("shadow-row-glow");
   expect(selectedRow.className).toContain("border-emerald-400");
@@ -579,7 +645,18 @@ test("shows inline detail panel with selected ticker and score", async () => {
 
     if (url.includes("/api/v1/screener/BBRI.JK?")) {
       return {
-        json: async () => ({ data: { ticker: "BBRI.JK", score: 0.9, pass_count: 4, category: "ideal" } }),
+        json: async () => ({
+          data: {
+            ticker: "BBRI.JK",
+            score: 0.9,
+            pass_count: 4,
+            category: "ideal",
+            pass_vol_ratio: 1,
+            pass_range_pct: 1,
+            pass_price_action: 1,
+            pass_is_ara_t0: 1,
+          },
+        }),
       } as Response;
     }
 
@@ -633,6 +710,8 @@ test("shows inline detail panel with selected ticker and score", async () => {
   expect(await screen.findByTestId("inline-detail-panel")).toBeInTheDocument();
   expect(screen.getByText("Selected: BBRI.JK")).toBeInTheDocument();
   expect(screen.getByText("Score: 0.90")).toBeInTheDocument();
+  expect(screen.getByText("pass_vol_ratio: 1")).toBeInTheDocument();
+  expect(screen.getByText("pass_range_pct: 1")).toBeInTheDocument();
 });
 
 test("closes inline detail panel", async () => {
