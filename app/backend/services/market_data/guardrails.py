@@ -4,6 +4,8 @@ from random import random
 from time import monotonic, sleep
 from typing import Callable, Generic, TypeVar
 
+GuardrailEventCallback = Callable[[dict[str, object]], None]
+
 TransientRetryPolicy = Callable[[Exception], bool]
 
 T = TypeVar("T")
@@ -15,10 +17,12 @@ class RateLimiter:
         qps: float,
         monotonic: Callable[[], float] = monotonic,
         sleeper: Callable[[float], None] = sleep,
+        on_event: GuardrailEventCallback | None = None,
     ) -> None:
         self.qps = qps
         self._monotonic = monotonic
         self._sleeper = sleeper
+        self._on_event = on_event
         self._last_called_at: float | None = None
 
     def wait(self) -> None:
@@ -33,8 +37,18 @@ class RateLimiter:
 
         elapsed = now - self._last_called_at
         if elapsed < interval:
-            self._sleeper(interval - elapsed)
+            sleep_sec = interval - elapsed
+            self._sleeper(sleep_sec)
             now = self._monotonic()
+            if self._on_event is not None:
+                self._on_event(
+                    {
+                        "event": "guardrail.rate_limit_wait",
+                        "qps": self.qps,
+                        "sleep_sec": sleep_sec,
+                        "elapsed_sec": elapsed,
+                    }
+                )
 
         self._last_called_at = now
 
@@ -45,10 +59,12 @@ class CircuitBreaker:
         failure_threshold: int,
         reset_timeout: float,
         monotonic: Callable[[], float] = monotonic,
+        on_event: GuardrailEventCallback | None = None,
     ) -> None:
         self.failure_threshold = failure_threshold
         self.reset_timeout = reset_timeout
         self._monotonic = monotonic
+        self._on_event = on_event
         self._consecutive_failures = 0
         self._opened_at: float | None = None
 
@@ -57,21 +73,47 @@ class CircuitBreaker:
             return True
 
         now = self._monotonic()
-        if now - self._opened_at >= self.reset_timeout:
+        elapsed = now - self._opened_at
+        if elapsed >= self.reset_timeout:
             self._opened_at = None
             self._consecutive_failures = 0
             return True
 
+        if self._on_event is not None:
+            self._on_event(
+                {
+                    "event": "guardrail.circuit_blocked",
+                    "seconds_until_reset": self.reset_timeout - elapsed,
+                    "reset_timeout_sec": self.reset_timeout,
+                }
+            )
         return False
 
     def record_failure(self) -> None:
         self._consecutive_failures += 1
         if self._consecutive_failures >= self.failure_threshold:
             self._opened_at = self._monotonic()
+            if self._on_event is not None:
+                self._on_event(
+                    {
+                        "event": "guardrail.circuit_opened",
+                        "consecutive_failures": self._consecutive_failures,
+                        "failure_threshold": self.failure_threshold,
+                        "reset_timeout_sec": self.reset_timeout,
+                    }
+                )
 
     def record_success(self) -> None:
+        previous = self._consecutive_failures
         self._consecutive_failures = 0
         self._opened_at = None
+        if previous > 0 and self._on_event is not None:
+            self._on_event(
+                {
+                    "event": "guardrail.circuit_closed_after_success",
+                    "previous_consecutive_failures": previous,
+                }
+            )
 
 
 class RequestCache(Generic[T]):
@@ -96,17 +138,40 @@ def retry_with_backoff(
     jitter_ratio: float,
     sleeper: Callable[[float], None] = sleep,
     should_retry: TransientRetryPolicy | None = None,
+    on_event: GuardrailEventCallback | None = None,
 ) -> T:
     for attempt in range(1, max_attempts + 1):
         try:
             return operation()
         except Exception as exc:
-            if should_retry is not None and not should_retry(exc):
+            retryable = should_retry(exc) if should_retry is not None else True
+            if not retryable:
                 raise
             if attempt >= max_attempts:
+                if on_event is not None:
+                    on_event(
+                        {
+                            "event": "guardrail.retry_exhausted",
+                            "attempt": attempt,
+                            "max_attempts": max_attempts,
+                            "error_type": type(exc).__name__,
+                        }
+                    )
                 raise
             delay = min(max_delay, base_delay * (2 ** (attempt - 1)))
             jitter = delay * jitter_ratio * random()
+            if on_event is not None:
+                on_event(
+                    {
+                        "event": "guardrail.retry_scheduled",
+                        "attempt": attempt,
+                        "max_attempts": max_attempts,
+                        "delay_sec": delay,
+                        "jitter_sec": jitter,
+                        "retryable": retryable,
+                        "error_type": type(exc).__name__,
+                    }
+                )
             sleeper(delay + jitter)
 
     raise RuntimeError("unreachable")

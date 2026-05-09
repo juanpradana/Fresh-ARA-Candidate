@@ -1,3 +1,5 @@
+from typing import Callable
+
 from app.backend.core.db import init_db
 from app.backend.repositories.sqlite.repo import get_missing_tickers_for_date, upsert_price_daily
 from app.backend.services.market_data import service as market_data_service
@@ -5,7 +7,12 @@ from app.backend.services.market_data.guardrails import CircuitBreaker, RequestC
 from app.backend.services.universe.service import get_default_idx_universe
 
 
-def handle_update_market(date: str, batch_size: int = 50, qps: float = 2.0) -> dict:
+def handle_update_market(
+    date: str,
+    batch_size: int = 50,
+    qps: float = 2.0,
+    on_event: Callable[[dict[str, object]], None] | None = None,
+) -> dict:
     init_db()
     tickers = get_default_idx_universe()
     missing = get_missing_tickers_for_date(trade_date=date, tickers=tickers)
@@ -14,7 +21,13 @@ def handle_update_market(date: str, batch_size: int = 50, qps: float = 2.0) -> d
     cache = RequestCache[list[dict]]()
 
     fetched = 0
+    tickers_ok = 0
+    tickers_empty = 0
+    tickers_error = 0
+    rows_upserted = 0
+    batch_count = 0
     for index in range(0, len(missing), batch_size):
+        batch_count += 1
         batch = missing[index:index + batch_size]
         for ticker in batch:
             try:
@@ -27,8 +40,37 @@ def handle_update_market(date: str, batch_size: int = 50, qps: float = 2.0) -> d
                 )
             except TypeError:
                 rows = market_data_service.fetch_daily_market_data(ticker, date)
+            except Exception as exc:
+                tickers_error += 1
+                if on_event is not None:
+                    on_event(
+                        {
+                            "event": "update_market.ticker_outcome",
+                            "date": date,
+                            "ticker": ticker,
+                            "outcome": "error",
+                            "row_count": 0,
+                            "error_type": type(exc).__name__,
+                        }
+                    )
+                continue
             if rows:
                 fetched += 1
+                tickers_ok += 1
+                outcome = "ok"
+            else:
+                tickers_empty += 1
+                outcome = "empty"
+            if on_event is not None:
+                on_event(
+                    {
+                        "event": "update_market.ticker_outcome",
+                        "date": date,
+                        "ticker": ticker,
+                        "outcome": outcome,
+                        "row_count": len(rows),
+                    }
+                )
             for row in rows:
                 upsert_price_daily(
                     trade_date=date,
@@ -40,11 +82,33 @@ def handle_update_market(date: str, batch_size: int = 50, qps: float = 2.0) -> d
                     volume=row["volume"],
                     source="yfinance",
                 )
+                rows_upserted += 1
 
     expected = len(missing)
-    return {
+    result = {
         "date": date,
         "expected": expected,
         "fetched": fetched,
         "is_complete": fetched == expected,
+        "tickers_ok": tickers_ok,
+        "tickers_empty": tickers_empty,
+        "tickers_error": tickers_error,
+        "rows_upserted": rows_upserted,
+        "batch_count": batch_count,
     }
+    if on_event is not None:
+        on_event(
+            {
+                "event": "update_market.run_completed",
+                "date": date,
+                "expected": expected,
+                "fetched": fetched,
+                "is_complete": fetched == expected,
+                "tickers_ok": tickers_ok,
+                "tickers_empty": tickers_empty,
+                "tickers_error": tickers_error,
+                "rows_upserted": rows_upserted,
+                "batch_count": batch_count,
+            }
+        )
+    return result

@@ -63,12 +63,40 @@ def handle_run_daily(date: str, preset: str, batch_size: int, qps: float, raise_
         return {"status": "skipped", "error": "already running or already executed"}
 
     fetched = 0
-    meta_json = json.dumps({"expected": 0, "fetched": 0, "preset": preset}, separators=(",", ":"))
+    meta_json_obj: dict[str, object] = {
+        "expected": 0,
+        "fetched": 0,
+        "preset": preset,
+        "market_status": "empty",
+        "tickers_ok": 0,
+        "tickers_empty": 0,
+        "tickers_error": 0,
+        "rows_upserted": 0,
+        "batch_count": 0,
+    }
+    meta_json = json.dumps(meta_json_obj, separators=(",", ":"))
     try:
         update_result = handle_update_market(date, batch_size, qps)
         expected = int(update_result.get("expected", 0))
         fetched = int(update_result.get("fetched", 0))
-        meta_json = json.dumps({"expected": expected, "fetched": fetched, "preset": preset}, separators=(",", ":"))
+        tickers_ok = int(update_result.get("tickers_ok", 0))
+        tickers_empty = int(update_result.get("tickers_empty", 0))
+        tickers_error = int(update_result.get("tickers_error", 0))
+        rows_upserted = int(update_result.get("rows_upserted", 0))
+        batch_count = int(update_result.get("batch_count", 0))
+        market_status = "complete" if update_result.get("is_complete", False) else ("empty" if fetched == 0 else "partial")
+        meta_json_obj = {
+            "expected": expected,
+            "fetched": fetched,
+            "preset": preset,
+            "market_status": market_status,
+            "tickers_ok": tickers_ok,
+            "tickers_empty": tickers_empty,
+            "tickers_error": tickers_error,
+            "rows_upserted": rows_upserted,
+            "batch_count": batch_count,
+        }
+        meta_json = json.dumps(meta_json_obj, separators=(",", ":"))
 
         if not update_result.get("is_complete", False):
             if expected > 0 and fetched == 0:

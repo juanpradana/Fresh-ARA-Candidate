@@ -1,3 +1,5 @@
+import json
+
 import pytest
 
 from app.backend.cli.main import main as cli_main
@@ -162,17 +164,24 @@ def test_run_daily_blocks_when_market_data_incomplete(monkeypatch):
 
 
 def test_run_daily_records_job_run_success(monkeypatch):
-    calls: list[str] = []
+    calls: list[dict[str, object]] = []
 
     def fake_init_db() -> None:
-        calls.append("init")
+        calls.append({"event": "init"})
 
     def fake_start(run_date: str, started_at: str) -> bool:
-        calls.append(f"start:{run_date}")
+        calls.append({"event": "start", "run_date": run_date})
         return True
 
     def fake_success(run_date: str, finished_at: str, rows_affected: int = 0, meta_json: str | None = None) -> None:
-        calls.append(f"success:{run_date}:{rows_affected}:{meta_json}")
+        calls.append(
+            {
+                "event": "success",
+                "run_date": run_date,
+                "rows": rows_affected,
+                "meta": None if meta_json is None else json.loads(meta_json),
+            }
+        )
 
     def fake_failed(
         run_date: str,
@@ -181,17 +190,34 @@ def test_run_daily_records_job_run_success(monkeypatch):
         rows_affected: int = 0,
         meta_json: str | None = None,
     ) -> None:
-        calls.append(f"failed:{run_date}:{error_message}:{rows_affected}:{meta_json}")
+        calls.append(
+            {
+                "event": "failed",
+                "run_date": run_date,
+                "error": error_message,
+                "rows": rows_affected,
+                "meta": None if meta_json is None else json.loads(meta_json),
+            }
+        )
 
     def fake_update(date: str, batch_size: int, qps: float) -> dict:
-        calls.append(f"update:{date}:{batch_size}:{qps}")
-        return {"is_complete": True, "fetched": 7, "expected": 10}
+        calls.append({"event": "update", "date": date, "batch_size": batch_size, "qps": qps})
+        return {
+            "is_complete": True,
+            "fetched": 7,
+            "expected": 10,
+            "tickers_ok": 7,
+            "tickers_empty": 2,
+            "tickers_error": 1,
+            "rows_upserted": 7,
+            "batch_count": 1,
+        }
 
     def fake_compute(date: str, feature_version: str) -> None:
-        calls.append(f"compute:{date}:{feature_version}")
+        calls.append({"event": "compute", "date": date, "feature_version": feature_version})
 
     def fake_screen(date: str, preset: str) -> None:
-        calls.append(f"screen:{date}:{preset}")
+        calls.append({"event": "screen", "date": date, "preset": preset})
 
     monkeypatch.setattr("app.backend.cli.main.init_db", fake_init_db, raising=False)
     monkeypatch.setattr("app.backend.cli.main.try_start_job_run", fake_start, raising=False)
@@ -204,28 +230,43 @@ def test_run_daily_records_job_run_success(monkeypatch):
 
     cli_main()
 
-    assert calls == [
+    assert [entry["event"] for entry in calls] == [
         "init",
-        "start:2026-05-09",
-        "update:2026-05-09:50:2.0",
-        "compute:2026-05-09:v1",
-        "screen:2026-05-09:balanced",
-        'success:2026-05-09:7:{"expected":10,"fetched":7,"preset":"balanced"}',
+        "start",
+        "update",
+        "compute",
+        "screen",
+        "success",
     ]
+    success = calls[-1]
+    assert success["run_date"] == "2026-05-09"
+    assert success["rows"] == 7
+    meta = success["meta"]
+    assert meta == {
+        "expected": 10,
+        "fetched": 7,
+        "preset": "balanced",
+        "market_status": "complete",
+        "tickers_ok": 7,
+        "tickers_empty": 2,
+        "tickers_error": 1,
+        "rows_upserted": 7,
+        "batch_count": 1,
+    }
 
 
 def test_run_daily_records_job_run_failed_when_incomplete(monkeypatch):
-    calls: list[str] = []
+    calls: list[dict[str, object]] = []
 
     def fake_init_db() -> None:
-        calls.append("init")
+        calls.append({"event": "init"})
 
     def fake_start(run_date: str, started_at: str) -> bool:
-        calls.append(f"start:{run_date}")
+        calls.append({"event": "start", "run_date": run_date})
         return True
 
     def fake_success(run_date: str, finished_at: str, rows_affected: int = 0, meta_json: str | None = None) -> None:
-        calls.append(f"success:{run_date}:{rows_affected}:{meta_json}")
+        calls.append({"event": "success", "run_date": run_date, "rows": rows_affected, "meta": meta_json})
 
     def fake_failed(
         run_date: str,
@@ -234,7 +275,15 @@ def test_run_daily_records_job_run_failed_when_incomplete(monkeypatch):
         rows_affected: int = 0,
         meta_json: str | None = None,
     ) -> None:
-        calls.append(f"failed:{run_date}:{error_message}:{rows_affected}:{meta_json}")
+        calls.append(
+            {
+                "event": "failed",
+                "run_date": run_date,
+                "error": error_message,
+                "rows": rows_affected,
+                "meta": None if meta_json is None else json.loads(meta_json),
+            }
+        )
 
     def fake_skipped(
         run_date: str,
@@ -243,17 +292,26 @@ def test_run_daily_records_job_run_failed_when_incomplete(monkeypatch):
         rows_affected: int = 0,
         meta_json: str | None = None,
     ) -> None:
-        calls.append(f"skipped:{run_date}:{message}:{rows_affected}:{meta_json}")
+        calls.append({"event": "skipped", "run_date": run_date, "message": message, "rows": rows_affected, "meta": meta_json})
 
     def fake_update(date: str, batch_size: int, qps: float) -> dict:
-        calls.append(f"update:{date}:{batch_size}:{qps}")
-        return {"is_complete": False, "expected": 10, "fetched": 3}
+        calls.append({"event": "update", "date": date, "batch_size": batch_size, "qps": qps})
+        return {
+            "is_complete": False,
+            "expected": 10,
+            "fetched": 3,
+            "tickers_ok": 3,
+            "tickers_empty": 5,
+            "tickers_error": 2,
+            "rows_upserted": 6,
+            "batch_count": 1,
+        }
 
     def fake_compute(date: str, feature_version: str) -> None:
-        calls.append(f"compute:{date}:{feature_version}")
+        calls.append({"event": "compute", "date": date, "feature_version": feature_version})
 
     def fake_screen(date: str, preset: str) -> None:
-        calls.append(f"screen:{date}:{preset}")
+        calls.append({"event": "screen", "date": date, "preset": preset})
 
     monkeypatch.setattr("app.backend.cli.main.init_db", fake_init_db, raising=False)
     monkeypatch.setattr("app.backend.cli.main.try_start_job_run", fake_start, raising=False)
@@ -267,26 +325,35 @@ def test_run_daily_records_job_run_failed_when_incomplete(monkeypatch):
 
     cli_main()
 
-    assert calls == [
-        "init",
-        "start:2026-05-09",
-        "update:2026-05-09:50:2.0",
-        'failed:2026-05-09:market data incomplete:3:{"expected":10,"fetched":3,"preset":"balanced"}',
-    ]
+    assert [entry["event"] for entry in calls] == ["init", "start", "update", "failed"]
+    failed = calls[-1]
+    assert failed["error"] == "market data incomplete"
+    assert failed["rows"] == 3
+    assert failed["meta"] == {
+        "expected": 10,
+        "fetched": 3,
+        "preset": "balanced",
+        "market_status": "partial",
+        "tickers_ok": 3,
+        "tickers_empty": 5,
+        "tickers_error": 2,
+        "rows_upserted": 6,
+        "batch_count": 1,
+    }
 
 
 def test_run_daily_records_job_run_skipped_when_no_market_data(monkeypatch):
-    calls: list[str] = []
+    calls: list[dict[str, object]] = []
 
     def fake_init_db() -> None:
-        calls.append("init")
+        calls.append({"event": "init"})
 
     def fake_start(run_date: str, started_at: str) -> bool:
-        calls.append(f"start:{run_date}")
+        calls.append({"event": "start", "run_date": run_date})
         return True
 
     def fake_success(run_date: str, finished_at: str, rows_affected: int = 0, meta_json: str | None = None) -> None:
-        calls.append(f"success:{run_date}:{rows_affected}:{meta_json}")
+        calls.append({"event": "success", "run_date": run_date, "rows": rows_affected, "meta": meta_json})
 
     def fake_failed(
         run_date: str,
@@ -295,7 +362,7 @@ def test_run_daily_records_job_run_skipped_when_no_market_data(monkeypatch):
         rows_affected: int = 0,
         meta_json: str | None = None,
     ) -> None:
-        calls.append(f"failed:{run_date}:{error_message}:{rows_affected}:{meta_json}")
+        calls.append({"event": "failed", "run_date": run_date, "error": error_message, "rows": rows_affected, "meta": meta_json})
 
     def fake_skipped(
         run_date: str,
@@ -304,17 +371,34 @@ def test_run_daily_records_job_run_skipped_when_no_market_data(monkeypatch):
         rows_affected: int = 0,
         meta_json: str | None = None,
     ) -> None:
-        calls.append(f"skipped:{run_date}:{message}:{rows_affected}:{meta_json}")
+        calls.append(
+            {
+                "event": "skipped",
+                "run_date": run_date,
+                "message": message,
+                "rows": rows_affected,
+                "meta": None if meta_json is None else json.loads(meta_json),
+            }
+        )
 
     def fake_update(date: str, batch_size: int, qps: float) -> dict:
-        calls.append(f"update:{date}:{batch_size}:{qps}")
-        return {"is_complete": False, "expected": 5, "fetched": 0}
+        calls.append({"event": "update", "date": date, "batch_size": batch_size, "qps": qps})
+        return {
+            "is_complete": False,
+            "expected": 5,
+            "fetched": 0,
+            "tickers_ok": 0,
+            "tickers_empty": 5,
+            "tickers_error": 0,
+            "rows_upserted": 0,
+            "batch_count": 1,
+        }
 
     def fake_compute(date: str, feature_version: str) -> None:
-        calls.append(f"compute:{date}:{feature_version}")
+        calls.append({"event": "compute", "date": date, "feature_version": feature_version})
 
     def fake_screen(date: str, preset: str) -> None:
-        calls.append(f"screen:{date}:{preset}")
+        calls.append({"event": "screen", "date": date, "preset": preset})
 
     monkeypatch.setattr("app.backend.cli.main.init_db", fake_init_db, raising=False)
     monkeypatch.setattr("app.backend.cli.main.try_start_job_run", fake_start, raising=False)
@@ -328,12 +412,21 @@ def test_run_daily_records_job_run_skipped_when_no_market_data(monkeypatch):
 
     cli_main()
 
-    assert calls == [
-        "init",
-        "start:2026-05-11",
-        "update:2026-05-11:50:2.0",
-        'skipped:2026-05-11:no market data:0:{"expected":5,"fetched":0,"preset":"balanced"}',
-    ]
+    assert [entry["event"] for entry in calls] == ["init", "start", "update", "skipped"]
+    skipped = calls[-1]
+    assert skipped["message"] == "no market data"
+    assert skipped["rows"] == 0
+    assert skipped["meta"] == {
+        "expected": 5,
+        "fetched": 0,
+        "preset": "balanced",
+        "market_status": "empty",
+        "tickers_ok": 0,
+        "tickers_empty": 5,
+        "tickers_error": 0,
+        "rows_upserted": 0,
+        "batch_count": 1,
+    }
 
 
 def test_daily_smoke_prints_ok_for_success(monkeypatch, capsys):
@@ -392,17 +485,17 @@ def test_daily_smoke_prints_alert_and_exits_for_failure(monkeypatch, capsys):
 
 
 def test_run_daily_records_job_run_failed_on_exception_with_metrics(monkeypatch):
-    calls: list[str] = []
+    calls: list[dict[str, object]] = []
 
     def fake_init_db() -> None:
-        calls.append("init")
+        calls.append({"event": "init"})
 
     def fake_start(run_date: str, started_at: str) -> bool:
-        calls.append(f"start:{run_date}")
+        calls.append({"event": "start", "run_date": run_date})
         return True
 
     def fake_success(run_date: str, finished_at: str, rows_affected: int = 0, meta_json: str | None = None) -> None:
-        calls.append(f"success:{run_date}:{rows_affected}:{meta_json}")
+        calls.append({"event": "success", "run_date": run_date, "rows": rows_affected, "meta": meta_json})
 
     def fake_failed(
         run_date: str,
@@ -411,14 +504,22 @@ def test_run_daily_records_job_run_failed_on_exception_with_metrics(monkeypatch)
         rows_affected: int = 0,
         meta_json: str | None = None,
     ) -> None:
-        calls.append(f"failed:{run_date}:{error_message}:{rows_affected}:{meta_json}")
+        calls.append(
+            {
+                "event": "failed",
+                "run_date": run_date,
+                "error": error_message,
+                "rows": rows_affected,
+                "meta": None if meta_json is None else json.loads(meta_json),
+            }
+        )
 
     def fake_update(date: str, batch_size: int, qps: float) -> dict:
-        calls.append(f"update:{date}:{batch_size}:{qps}")
+        calls.append({"event": "update", "date": date, "batch_size": batch_size, "qps": qps})
         return {"is_complete": True, "expected": 9, "fetched": 4}
 
     def boom_compute(date: str, feature_version: str) -> None:
-        calls.append(f"compute:{date}:{feature_version}")
+        calls.append({"event": "compute", "date": date, "feature_version": feature_version})
         raise RuntimeError("compute exploded")
 
     monkeypatch.setattr("app.backend.cli.main.init_db", fake_init_db, raising=False)
@@ -434,10 +535,19 @@ def test_run_daily_records_job_run_failed_on_exception_with_metrics(monkeypatch)
         cli_main()
 
     assert "compute exploded" in str(exc.value)
-    assert calls == [
-        "init",
-        "start:2026-05-13",
-        "update:2026-05-13:50:2.0",
-        "compute:2026-05-13:v1",
-        'failed:2026-05-13:compute exploded:4:{"expected":9,"fetched":4,"preset":"balanced"}',
-    ]
+    assert [entry["event"] for entry in calls] == ["init", "start", "update", "compute", "failed"]
+    failed = calls[-1]
+    assert failed["run_date"] == "2026-05-13"
+    assert failed["error"] == "compute exploded"
+    assert failed["rows"] == 4
+    assert failed["meta"] == {
+        "expected": 9,
+        "fetched": 4,
+        "preset": "balanced",
+        "market_status": "complete",
+        "tickers_ok": 0,
+        "tickers_empty": 0,
+        "tickers_error": 0,
+        "rows_upserted": 0,
+        "batch_count": 0,
+    }
