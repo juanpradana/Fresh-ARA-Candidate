@@ -54,8 +54,23 @@ def handle_update_market(
                     breaker=breaker,
                     cache=cache,
                 )
-            except TypeError:
-                rows = market_data_service.fetch_daily_market_data(ticker, date)
+            except TypeError as exc:
+                if "unexpected keyword argument" in str(exc):
+                    rows = market_data_service.fetch_daily_market_data(ticker, date)
+                else:
+                    tickers_error += 1
+                    if on_event is not None:
+                        on_event(
+                            {
+                                "event": "update_market.ticker_outcome",
+                                "date": date,
+                                "ticker": ticker,
+                                "outcome": "error",
+                                "row_count": 0,
+                                "error_type": type(exc).__name__,
+                            }
+                        )
+                    continue
             except Exception as exc:
                 tickers_error += 1
                 if on_event is not None:
