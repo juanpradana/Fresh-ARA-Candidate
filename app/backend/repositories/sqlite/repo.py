@@ -487,7 +487,14 @@ def try_start_job_run(run_date: str, started_at: str) -> bool:
         session.close()
 
 
-def _finish_job_run(run_date: str, finished_at: str, status: str, error_message: str | None) -> None:
+def _finish_job_run(
+    run_date: str,
+    finished_at: str,
+    status: str,
+    error_message: str | None,
+    rows_affected: int = 0,
+    meta_json: str | None = None,
+) -> None:
     session = SessionLocal()
     try:
         running_row = session.execute(
@@ -512,6 +519,8 @@ def _finish_job_run(run_date: str, finished_at: str, status: str, error_message:
         ).scalar_one_or_none()
 
         running_row.finished_at = finished_at
+        running_row.rows_affected = rows_affected
+        running_row.meta_json = meta_json
 
         if existing_terminal is not None:
             session.commit()
@@ -525,8 +534,8 @@ def _finish_job_run(run_date: str, finished_at: str, status: str, error_message:
                 error_message=error_message,
                 started_at=running_row.started_at,
                 finished_at=finished_at,
-                rows_affected=running_row.rows_affected,
-                meta_json=running_row.meta_json,
+                rows_affected=rows_affected,
+                meta_json=meta_json,
             )
         )
         session.commit()
@@ -534,16 +543,54 @@ def _finish_job_run(run_date: str, finished_at: str, status: str, error_message:
         session.close()
 
 
-def finish_job_run_success(run_date: str, finished_at: str) -> None:
-    _finish_job_run(run_date=run_date, finished_at=finished_at, status="success", error_message=None)
+def finish_job_run_success(
+    run_date: str,
+    finished_at: str,
+    rows_affected: int = 0,
+    meta_json: str | None = None,
+) -> None:
+    _finish_job_run(
+        run_date=run_date,
+        finished_at=finished_at,
+        status="success",
+        error_message=None,
+        rows_affected=rows_affected,
+        meta_json=meta_json,
+    )
 
 
-def finish_job_run_failed(run_date: str, finished_at: str, error_message: str) -> None:
-    _finish_job_run(run_date=run_date, finished_at=finished_at, status="failed", error_message=error_message)
+def finish_job_run_failed(
+    run_date: str,
+    finished_at: str,
+    error_message: str,
+    rows_affected: int = 0,
+    meta_json: str | None = None,
+) -> None:
+    _finish_job_run(
+        run_date=run_date,
+        finished_at=finished_at,
+        status="failed",
+        error_message=error_message,
+        rows_affected=rows_affected,
+        meta_json=meta_json,
+    )
 
 
-def finish_job_run_skipped(run_date: str, finished_at: str, message: str) -> None:
-    _finish_job_run(run_date=run_date, finished_at=finished_at, status="skipped", error_message=message)
+def finish_job_run_skipped(
+    run_date: str,
+    finished_at: str,
+    message: str,
+    rows_affected: int = 0,
+    meta_json: str | None = None,
+) -> None:
+    _finish_job_run(
+        run_date=run_date,
+        finished_at=finished_at,
+        status="skipped",
+        error_message=message,
+        rows_affected=rows_affected,
+        meta_json=meta_json,
+    )
 
 
 def get_recent_job_runs(limit: int = 10) -> list[dict]:

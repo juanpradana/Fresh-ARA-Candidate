@@ -1,4 +1,5 @@
 import argparse
+import json
 import sys
 from datetime import datetime
 
@@ -63,14 +64,18 @@ def handle_run_daily(date: str, preset: str, batch_size: int, qps: float, raise_
 
     try:
         update_result = handle_update_market(date, batch_size, qps)
+        expected = int(update_result.get("expected", 0))
+        fetched = int(update_result.get("fetched", 0))
+        meta_json = json.dumps({"expected": expected, "fetched": fetched, "preset": preset}, separators=(",", ":"))
+
         if not update_result.get("is_complete", False):
-            expected = int(update_result.get("expected", 0))
-            fetched = int(update_result.get("fetched", 0))
             if expected > 0 and fetched == 0:
                 finish_job_run_skipped(
                     run_date=date,
                     finished_at=_now_iso(),
                     message="no market data",
+                    rows_affected=0,
+                    meta_json=meta_json,
                 )
                 return {"status": "skipped", "error": "no market data"}
 
@@ -78,12 +83,19 @@ def handle_run_daily(date: str, preset: str, batch_size: int, qps: float, raise_
                 run_date=date,
                 finished_at=_now_iso(),
                 error_message="market data incomplete",
+                rows_affected=fetched,
+                meta_json=meta_json,
             )
             return {"status": "failed", "error": "market data incomplete"}
 
         handle_compute_features(date, "v1")
         handle_run_screening(date, preset)
-        finish_job_run_success(run_date=date, finished_at=_now_iso())
+        finish_job_run_success(
+            run_date=date,
+            finished_at=_now_iso(),
+            rows_affected=fetched,
+            meta_json=meta_json,
+        )
         return {"status": "success", "error": None}
     except Exception as exc:
         finish_job_run_failed(
