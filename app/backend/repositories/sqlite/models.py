@@ -79,7 +79,7 @@ class JobRun(Base):
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     job_name = Column(Text, nullable=False, default="daily-screening")
-    run_date = Column(Text, unique=True, nullable=False)
+    run_date = Column(Text, nullable=False)
     status = Column(Text, nullable=False)
     error_message = Column(Text, nullable=True)
     started_at = Column(Text, nullable=False)

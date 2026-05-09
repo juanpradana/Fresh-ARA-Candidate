@@ -2,7 +2,11 @@ from sqlalchemy import select
 
 from app.backend.core.db import init_db, SessionLocal
 from app.backend.repositories.sqlite.models import JobRun, ScreeningPreset, Ticker
-from app.backend.repositories.sqlite.repo import try_start_job_run
+from app.backend.repositories.sqlite.repo import (
+    finish_job_run_failed,
+    finish_job_run_success,
+    try_start_job_run,
+)
 
 
 def test_init_db_creates_tables(tmp_path, monkeypatch):
@@ -121,3 +125,32 @@ def test_try_start_job_run_blocks_when_another_run_is_running(tmp_path, monkeypa
 
     started = try_start_job_run(run_date="2026-05-08", started_at="2026-05-08T10:00:00")
     assert started is False
+
+
+def test_job_run_status_transition_creates_audit_rows(tmp_path, monkeypatch):
+    monkeypatch.setenv("APP_DB_PATH", str(tmp_path / "test.sqlite"))
+    init_db()
+
+    assert try_start_job_run(run_date="2026-05-07", started_at="2026-05-07T10:00:00") is True
+    finish_job_run_failed(
+        run_date="2026-05-07",
+        finished_at="2026-05-07T10:05:00",
+        error_message="simulated failure",
+    )
+    assert try_start_job_run(run_date="2026-05-07", started_at="2026-05-07T10:10:00") is True
+    finish_job_run_success(
+        run_date="2026-05-07",
+        finished_at="2026-05-07T10:15:00",
+    )
+
+    session = SessionLocal()
+    try:
+        rows = session.execute(
+            select(JobRun)
+            .where(JobRun.run_date == "2026-05-07")
+            .order_by(JobRun.id.asc())
+        ).scalars().all()
+        statuses = [row.status for row in rows]
+        assert statuses == ["running", "failed", "running", "success"]
+    finally:
+        session.close()

@@ -439,23 +439,21 @@ def try_start_job_run(run_date: str, started_at: str) -> bool:
             select(JobRun).where(
                 JobRun.job_name == "daily-screening",
                 JobRun.status == "running",
+                JobRun.finished_at.is_(None),
             )
         ).scalar_one_or_none()
         if running is not None:
             return False
 
-        existing = session.execute(
-            select(JobRun).where(JobRun.run_date == run_date)
+        success = session.execute(
+            select(JobRun).where(
+                JobRun.job_name == "daily-screening",
+                JobRun.run_date == run_date,
+                JobRun.status == "success",
+            )
         ).scalar_one_or_none()
-        if existing is not None:
-            if existing.status in {"success", "running"}:
-                return False
-            existing.status = "running"
-            existing.error_message = None
-            existing.started_at = started_at
-            existing.finished_at = None
-            session.commit()
-            return True
+        if success is not None:
+            return False
 
         session.add(
             JobRun(
@@ -475,52 +473,52 @@ def try_start_job_run(run_date: str, started_at: str) -> bool:
         session.close()
 
 
-def finish_job_run_success(run_date: str, finished_at: str) -> None:
+def _finish_job_run(run_date: str, finished_at: str, status: str, error_message: str | None) -> None:
     session = SessionLocal()
     try:
-        row = session.execute(
-            select(JobRun).where(JobRun.run_date == run_date)
+        running_row = session.execute(
+            select(JobRun)
+            .where(
+                JobRun.job_name == "daily-screening",
+                JobRun.run_date == run_date,
+                JobRun.status == "running",
+                JobRun.finished_at.is_(None),
+            )
+            .order_by(JobRun.id.desc())
         ).scalar_one_or_none()
-        if row is None:
+        if running_row is None:
             return
-        row.status = "success"
-        row.error_message = None
-        row.finished_at = finished_at
+
+        running_row.finished_at = finished_at
+        started_at = running_row.started_at
+
+        session.add(
+            JobRun(
+                job_name="daily-screening",
+                run_date=run_date,
+                status=status,
+                error_message=error_message,
+                started_at=started_at,
+                finished_at=finished_at,
+                rows_affected=running_row.rows_affected,
+                meta_json=running_row.meta_json,
+            )
+        )
         session.commit()
     finally:
         session.close()
+
+
+def finish_job_run_success(run_date: str, finished_at: str) -> None:
+    _finish_job_run(run_date=run_date, finished_at=finished_at, status="success", error_message=None)
 
 
 def finish_job_run_failed(run_date: str, finished_at: str, error_message: str) -> None:
-    session = SessionLocal()
-    try:
-        row = session.execute(
-            select(JobRun).where(JobRun.run_date == run_date)
-        ).scalar_one_or_none()
-        if row is None:
-            return
-        row.status = "failed"
-        row.error_message = error_message
-        row.finished_at = finished_at
-        session.commit()
-    finally:
-        session.close()
+    _finish_job_run(run_date=run_date, finished_at=finished_at, status="failed", error_message=error_message)
 
 
 def finish_job_run_skipped(run_date: str, finished_at: str, message: str) -> None:
-    session = SessionLocal()
-    try:
-        row = session.execute(
-            select(JobRun).where(JobRun.run_date == run_date)
-        ).scalar_one_or_none()
-        if row is None:
-            return
-        row.status = "skipped"
-        row.error_message = message
-        row.finished_at = finished_at
-        session.commit()
-    finally:
-        session.close()
+    _finish_job_run(run_date=run_date, finished_at=finished_at, status="skipped", error_message=message)
 
 
 def get_recent_job_runs(limit: int = 10) -> list[dict]:
