@@ -103,58 +103,66 @@ export function ScreenerPage() {
 
   return (
     <div data-testid="screener-shell" className="min-h-screen bg-zinc-950 text-zinc-100">
-      <ScreenerTopBar />
-      <GlobalNoticeBar screenDate={filters.screenDate} warning={freshnessWarning} />
-      <ActionRail
-        presets={presets}
-        filters={filters}
-        onChangeFilters={setFilters}
-        onApply={() => loadData(filters)}
-        csvExportUrl={getScreenerCsvExportUrl({ screenDate: filters.screenDate, preset: filters.preset })}
-        xlsxExportUrl={getScreenerXlsxExportUrl({ screenDate: filters.screenDate, preset: filters.preset })}
-      />
-      {backtest && (
-        <section>
-          <h2>Backtest Summary</h2>
-          <p>Win rate: {(backtest.win_rate * 100).toFixed(2)}%</p>
-          <p>Average score: {backtest.avg_score.toFixed(2)}</p>
-          <p>Total samples: {backtest.total}</p>
-        </section>
-      )}
-      {latestRun && (
-        <section>
-          <h2>Daily Job Status</h2>
-          <p>Date: {latestRun.run_date}</p>
-          <p>Status: {latestRun.status === "skipped" ? "skipped (non-trading day)" : latestRun.status}</p>
-          {latestRun.error_message && <p>Error: {latestRun.error_message}</p>}
-        </section>
-      )}
-      <SummaryStrip
-        totalCandidates={rows.length}
-        idealCount={rows.filter((row) => row.category === "ideal").length}
-      />
-      {isLoadingRows && <p>Loading screener...</p>}
-      <ScreenerTableSection
-        rows={rows}
-        selectedTicker={selectedTicker}
-        onSelect={setSelectedTicker}
-      />
-      <ScreenerCardListSection rows={rows} />
-      {selectedTicker && (
-        <section data-testid="inline-detail-panel" className="mt-4 rounded-lg border border-zinc-800 bg-zinc-900/70 p-3">
-          <TickerDetailDrawer
-            open={selectedTicker !== null}
-            selectedTicker={selectedTicker}
-            detail={selectedDetail}
-            history={selectedHistory}
-            onClose={() => {
-              setSelectedTicker(null);
-              setSelectedDetail(null);
-              setSelectedHistory([]);
-            }}
-          />
-        </section>
-      )}
+      <main className="mx-auto flex w-full max-w-7xl flex-col gap-4 px-4 py-5 md:px-6 lg:gap-5 lg:py-6">
+        <ScreenerTopBar />
+        <GlobalNoticeBar screenDate={filters.screenDate} warning={freshnessWarning} />
+        <ActionRail
+          presets={presets}
+          filters={filters}
+          onChangeFilters={setFilters}
+          onApply={() => loadData(filters)}
+          csvExportUrl={getScreenerCsvExportUrl({ screenDate: filters.screenDate, preset: filters.preset })}
+          xlsxExportUrl={getScreenerXlsxExportUrl({ screenDate: filters.screenDate, preset: filters.preset })}
+        />
+        <div className="grid gap-3 lg:grid-cols-2">
+          {backtest && (
+            <section className="rounded-lg border border-zinc-800 bg-zinc-900/50 p-4">
+              <h2 className="text-sm font-medium text-zinc-200">Backtest Summary</h2>
+              <div className="mt-2 space-y-1 text-sm text-zinc-300">
+                <p>Win rate: {(backtest.win_rate * 100).toFixed(2)}%</p>
+                <p>Average score: {backtest.avg_score.toFixed(2)}</p>
+                <p>Total samples: {backtest.total}</p>
+              </div>
+            </section>
+          )}
+          {latestRun && (
+            <section className="rounded-lg border border-zinc-800 bg-zinc-900/50 p-4">
+              <h2 className="text-sm font-medium text-zinc-200">Daily Job Status</h2>
+              <div className="mt-2 space-y-1 text-sm text-zinc-300">
+                <p>Date: {latestRun.run_date}</p>
+                <p>Status: {latestRun.status === "skipped" ? "skipped (non-trading day)" : latestRun.status}</p>
+                {latestRun.error_message && <p>Error: {latestRun.error_message}</p>}
+              </div>
+            </section>
+          )}
+        </div>
+        <SummaryStrip
+          totalCandidates={rows.length}
+          idealCount={rows.filter((row) => row.category === "ideal").length}
+        />
+        {isLoadingRows && <p className="text-sm text-zinc-400">Loading screener...</p>}
+        <ScreenerTableSection
+          rows={rows}
+          selectedTicker={selectedTicker}
+          onSelect={setSelectedTicker}
+        />
+        <ScreenerCardListSection rows={rows} />
+        {selectedTicker && (
+          <section data-testid="inline-detail-panel" className="rounded-lg border border-zinc-800 bg-zinc-900/70 p-3">
+            <TickerDetailDrawer
+              open={selectedTicker !== null}
+              selectedTicker={selectedTicker}
+              detail={selectedDetail}
+              history={selectedHistory}
+              onClose={() => {
+                setSelectedTicker(null);
+                setSelectedDetail(null);
+                setSelectedHistory([]);
+              }}
+            />
+          </section>
+        )}
+      </main>
     </div>
   );
 }
