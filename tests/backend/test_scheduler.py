@@ -40,49 +40,60 @@ def test_schedule_screening_registers_daily_job(monkeypatch):
     assert run_dates == ["2026-05-09"]
 
 
-def test_run_daily_job_writes_success_log(monkeypatch, tmp_path):
-    monkeypatch.setenv("APP_DB_PATH", str(tmp_path / "scheduler.sqlite"))
+def test_run_daily_job_delegates_to_cli_orchestration(monkeypatch):
+    captured: dict[str, object] = {}
 
-    def fake_run_daily(_: str, __: int = 50) -> None:
-        return None
+    def fake_handle_run_daily(date: str, preset: str, batch_size: int, qps: float, raise_on_error: bool = True) -> dict:
+        captured["date"] = date
+        captured["preset"] = preset
+        captured["batch_size"] = batch_size
+        captured["qps"] = qps
+        captured["raise_on_error"] = raise_on_error
+        return {"status": "success", "error": None}
 
-    monkeypatch.setattr("app.backend.services.daily_job.service._run_daily", fake_run_daily)
+    monkeypatch.setattr("app.backend.cli.main.handle_run_daily", fake_handle_run_daily)
 
-    result = run_daily_job("2026-05-07")
+    result = run_daily_job("2026-05-07", batch_size=25)
 
-    assert result["status"] == "success"
-    assert result["skipped"] is False
-
-
-def test_run_daily_job_retries_same_date_after_failure(monkeypatch, tmp_path):
-    monkeypatch.setenv("APP_DB_PATH", str(tmp_path / "scheduler.sqlite"))
-
-    first_call = {"entered": False}
-
-    def fake_run_daily(_: str, __: int = 50) -> None:
-        if not first_call["entered"]:
-            first_call["entered"] = True
-            raise RuntimeError("simulated failure")
-
-    monkeypatch.setattr("app.backend.services.daily_job.service._run_daily", fake_run_daily)
-
-    first = run_daily_job("2026-05-07")
-    second = run_daily_job("2026-05-07")
-
-    assert first["status"] == "failed"
-    assert second["status"] == "success"
-    assert second["skipped"] is False
+    assert result == {
+        "status": "success",
+        "skipped": False,
+        "error": None,
+    }
+    assert captured == {
+        "date": "2026-05-07",
+        "preset": "balanced",
+        "batch_size": 25,
+        "qps": 2.0,
+        "raise_on_error": False,
+    }
 
 
-def test_run_daily_job_persists_error_status(monkeypatch, tmp_path):
-    monkeypatch.setenv("APP_DB_PATH", str(tmp_path / "scheduler.sqlite"))
+def test_run_daily_job_maps_skipped_status(monkeypatch):
+    def fake_handle_run_daily(date: str, preset: str, batch_size: int, qps: float, raise_on_error: bool = True) -> dict:
+        return {"status": "skipped", "error": "already running or already executed"}
 
-    def fake_run_daily(_: str, __: int = 50) -> None:
-        raise ValueError("market source unavailable")
-
-    monkeypatch.setattr("app.backend.services.daily_job.service._run_daily", fake_run_daily)
+    monkeypatch.setattr("app.backend.cli.main.handle_run_daily", fake_handle_run_daily)
 
     result = run_daily_job("2026-05-07")
 
-    assert result["status"] == "failed"
-    assert "market source unavailable" in result["error"]
+    assert result == {
+        "status": "skipped",
+        "skipped": True,
+        "error": "already running or already executed",
+    }
+
+
+def test_run_daily_job_maps_failed_status(monkeypatch):
+    def fake_handle_run_daily(date: str, preset: str, batch_size: int, qps: float, raise_on_error: bool = True) -> dict:
+        return {"status": "failed", "error": "market source unavailable"}
+
+    monkeypatch.setattr("app.backend.cli.main.handle_run_daily", fake_handle_run_daily)
+
+    result = run_daily_job("2026-05-07")
+
+    assert result == {
+        "status": "failed",
+        "skipped": False,
+        "error": "market source unavailable",
+    }
