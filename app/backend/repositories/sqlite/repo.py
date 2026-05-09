@@ -351,11 +351,14 @@ def try_start_job_run(run_date: str, started_at: str) -> bool:
 
         session.add(
             JobRun(
+                job_name="daily-screening",
                 run_date=run_date,
                 status="running",
                 error_message=None,
                 started_at=started_at,
                 finished_at=None,
+                rows_affected=0,
+                meta_json=None,
             )
         )
         session.commit()
@@ -422,11 +425,14 @@ def get_recent_job_runs(limit: int = 10) -> list[dict]:
         ).scalars().all()
         return [
             {
+                "job_name": row.job_name,
                 "run_date": row.run_date,
                 "status": row.status,
                 "error_message": row.error_message,
                 "started_at": row.started_at,
                 "finished_at": row.finished_at,
+                "rows_affected": row.rows_affected,
+                "meta_json": row.meta_json,
             }
             for row in rows
         ]
