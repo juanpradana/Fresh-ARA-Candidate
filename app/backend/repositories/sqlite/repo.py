@@ -53,13 +53,22 @@ def upsert_screening_result(
         session.close()
 
 
-def get_screener_rows(screen_date: str | None = None, preset: str = "balanced") -> list[dict]:
+def get_screener_rows(
+    screen_date: str | None = None,
+    preset: str = "balanced",
+    limit: int | None = None,
+    offset: int = 0,
+) -> list[dict]:
     session = SessionLocal()
     try:
         stmt = select(ScreeningResult).where(ScreeningResult.preset_name == preset)
         if screen_date:
             stmt = stmt.where(ScreeningResult.screen_date == screen_date)
         stmt = stmt.order_by(ScreeningResult.rank_num.asc())
+        if offset > 0:
+            stmt = stmt.offset(offset)
+        if limit is not None:
+            stmt = stmt.limit(limit)
 
         rows = session.execute(stmt).scalars().all()
         return [
@@ -204,16 +213,19 @@ def get_distribution(screen_date: str, preset: str) -> dict:
         session.close()
 
 
-def get_backtest_summary(start: str, end: str, preset: str) -> dict:
+def get_backtest_summary(start: str, end: str, preset: str, top_n: int | None = None) -> dict:
     session = SessionLocal()
     try:
-        rows = session.execute(
-            select(ScreeningResult).where(
-                ScreeningResult.preset_name == preset,
-                ScreeningResult.screen_date >= start,
-                ScreeningResult.screen_date <= end,
-            )
-        ).scalars().all()
+        stmt = select(ScreeningResult).where(
+            ScreeningResult.preset_name == preset,
+            ScreeningResult.screen_date >= start,
+            ScreeningResult.screen_date <= end,
+        )
+        stmt = stmt.order_by(ScreeningResult.score.desc())
+        if top_n is not None:
+            stmt = stmt.limit(top_n)
+
+        rows = session.execute(stmt).scalars().all()
 
         total = len(rows)
         winners = sum(1 for row in rows if row.category == "ideal")

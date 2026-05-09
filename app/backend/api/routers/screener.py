@@ -93,14 +93,16 @@ def analytics_backtest(
     start: str = Query(...),
     end: str = Query(...),
     preset: str = Query(default="balanced"),
+    top_n: int | None = Query(default=None, ge=1),
 ) -> dict:
     init_db()
     return {
-        "data": get_backtest_summary(start=start, end=end, preset=preset),
+        "data": get_backtest_summary(start=start, end=end, preset=preset, top_n=top_n),
         "meta": {
             "start": start,
             "end": end,
             "preset": preset,
+            "top_n": top_n,
         },
         "error": None,
     }
@@ -150,15 +152,19 @@ def export_screener_xlsx(
 def screener(
     screen_date: str | None = Query(default=None),
     preset: str = Query(default="balanced"),
+    limit: int = Query(default=100, ge=1, le=1000),
+    offset: int = Query(default=0, ge=0),
 ) -> dict:
     init_db()
-    rows = get_screener_rows(screen_date=screen_date, preset=preset)
+    rows = get_screener_rows(screen_date=screen_date, preset=preset, limit=limit, offset=offset)
     return {
         "data": rows,
         "meta": {
             "count": len(rows),
             "screen_date": screen_date,
             "preset": preset,
+            "limit": limit,
+            "offset": offset,
         },
         "error": None,
     }

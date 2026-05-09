@@ -32,6 +32,15 @@ def test_screener_returns_data_after_run_daily(monkeypatch):
     assert len(body["data"]) > 0
 
 
+def test_screener_supports_limit_and_offset_query_params():
+    paged = client.get("/api/v1/screener?screen_date=2026-05-06&preset=balanced&limit=1&offset=0")
+    assert paged.status_code == 200
+    body = paged.json()
+    assert len(body["data"]) <= 1
+    assert body["meta"]["limit"] == 1
+    assert body["meta"]["offset"] == 0
+
+
 def test_meta_latest_screen_date_exists():
     res = client.get("/api/v1/meta/latest-screen-date")
     assert res.status_code == 200
@@ -80,6 +89,16 @@ def test_analytics_backtest_returns_summary():
     res = client.get("/api/v1/analytics/backtest?start=2026-05-01&end=2026-05-31&preset=balanced")
     assert res.status_code == 200
     body = res.json()
+    assert "win_rate" in body["data"]
+    assert "avg_score" in body["data"]
+    assert "total" in body["data"]
+
+
+def test_analytics_backtest_supports_top_n_query_param():
+    res = client.get("/api/v1/analytics/backtest?start=2026-05-01&end=2026-05-31&preset=balanced&top_n=1")
+    assert res.status_code == 200
+    body = res.json()
+    assert body["meta"]["top_n"] == 1
     assert "win_rate" in body["data"]
     assert "avg_score" in body["data"]
     assert "total" in body["data"]
