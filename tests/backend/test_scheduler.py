@@ -8,6 +8,13 @@ def test_scheduler_uses_jakarta_timezone():
     assert "Asia/Jakarta" in str(trigger.timezone)
 
 
+def test_scheduler_defaults_to_18_00_wib():
+    trigger = build_trigger()
+    fields = {field.name: str(field) for field in trigger.fields}
+    assert fields["hour"] == "18"
+    assert fields["minute"] == "0"
+
+
 def test_schedule_screening_registers_daily_job(monkeypatch):
     captured: dict[str, object] = {}
 
