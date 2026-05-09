@@ -201,6 +201,47 @@ def test_analytics_backtest_supports_top_n_query_param():
     assert "precision_at_top_n" in body["data"]
 
 
+def test_analytics_backtest_top_n_limits_sample_size_and_metrics():
+    init_db()
+    upsert_screening_result(
+        screen_date="2026-05-14",
+        ticker="TOPN1.JK",
+        preset_name="balanced",
+        score=0.95,
+        pass_count=4,
+        category="ideal",
+    )
+    upsert_screening_result(
+        screen_date="2026-05-14",
+        ticker="TOPN2.JK",
+        preset_name="balanced",
+        score=0.90,
+        pass_count=3,
+        category="candidate",
+    )
+    upsert_screening_result(
+        screen_date="2026-05-14",
+        ticker="TOPN3.JK",
+        preset_name="balanced",
+        score=0.85,
+        pass_count=2,
+        category="candidate",
+    )
+
+    full = client.get("/api/v1/analytics/backtest?start=2026-05-14&end=2026-05-14&preset=balanced")
+    assert full.status_code == 200
+    full_body = full.json()
+
+    top_1 = client.get("/api/v1/analytics/backtest?start=2026-05-14&end=2026-05-14&preset=balanced&top_n=1")
+    assert top_1.status_code == 200
+    top_1_body = top_1.json()
+
+    assert full_body["data"]["total"] == 3
+    assert top_1_body["data"]["total"] == 1
+    assert top_1_body["data"]["precision_at_top_n"] == 1.0
+    assert full_body["data"]["precision_at_top_n"] < top_1_body["data"]["precision_at_top_n"]
+
+
 def test_invalid_pagination_and_top_n_params_return_422():
     invalid_limit = client.get("/api/v1/screener?screen_date=2026-05-06&preset=balanced&limit=0&offset=0")
     assert invalid_limit.status_code == 422
