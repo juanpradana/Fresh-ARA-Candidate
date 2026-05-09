@@ -1,4 +1,5 @@
 import argparse
+import sys
 from datetime import datetime
 
 from app.backend.cli.commands.backfill_market import handle_backfill_market
@@ -54,6 +55,51 @@ def _now_iso() -> str:
     return datetime.utcnow().isoformat()
 
 
+def handle_run_daily(date: str, preset: str, batch_size: int, qps: float, raise_on_error: bool = True) -> dict:
+    init_db()
+    started = try_start_job_run(run_date=date, started_at=_now_iso())
+    if not started:
+        return {"status": "skipped", "error": "already running or already executed"}
+
+    try:
+        update_result = handle_update_market(date, batch_size, qps)
+        if not update_result.get("is_complete", False):
+            expected = int(update_result.get("expected", 0))
+            fetched = int(update_result.get("fetched", 0))
+            if expected > 0 and fetched == 0:
+                finish_job_run_skipped(
+                    run_date=date,
+                    finished_at=_now_iso(),
+                    message="no market data",
+                )
+                return {"status": "skipped", "error": "no market data"}
+
+            finish_job_run_failed(
+                run_date=date,
+                finished_at=_now_iso(),
+                error_message="market data incomplete",
+            )
+            return {"status": "failed", "error": "market data incomplete"}
+
+        handle_compute_features(date, "v1")
+        handle_run_screening(date, preset)
+        finish_job_run_success(run_date=date, finished_at=_now_iso())
+        return {"status": "success", "error": None}
+    except Exception as exc:
+        finish_job_run_failed(
+            run_date=date,
+            finished_at=_now_iso(),
+            error_message=str(exc),
+        )
+        if raise_on_error:
+            raise
+        return {"status": "failed", "error": str(exc)}
+
+
+def handle_daily_smoke(date: str, batch_size: int, qps: float) -> dict:
+    return handle_run_daily(date=date, preset="balanced", batch_size=batch_size, qps=qps, raise_on_error=False)
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -86,6 +132,11 @@ def main() -> None:
     schedule_screening_parser = subparsers.add_parser("schedule-screening")
     schedule_screening_parser.add_argument("--timezone", default="Asia/Jakarta")
 
+    daily_smoke_parser = subparsers.add_parser("daily-smoke")
+    daily_smoke_parser.add_argument("--date", required=True)
+    daily_smoke_parser.add_argument("--batch-size", type=int, default=50)
+    daily_smoke_parser.add_argument("--qps", type=float, default=2.0)
+
     args = parser.parse_args()
 
     if args.command == "update-market":
@@ -105,46 +156,27 @@ def main() -> None:
         return
 
     if args.command == "run-daily":
-        init_db()
-        started = try_start_job_run(run_date=args.date, started_at=_now_iso())
-        if not started:
-            return
-
-        try:
-            update_result = handle_update_market(args.date, args.batch_size, args.qps)
-            if not update_result.get("is_complete", False):
-                expected = int(update_result.get("expected", 0))
-                fetched = int(update_result.get("fetched", 0))
-                if expected > 0 and fetched == 0:
-                    finish_job_run_skipped(
-                        run_date=args.date,
-                        finished_at=_now_iso(),
-                        message="no market data",
-                    )
-                    return
-
-                finish_job_run_failed(
-                    run_date=args.date,
-                    finished_at=_now_iso(),
-                    error_message="market data incomplete",
-                )
-                return
-
-            handle_compute_features(args.date, "v1")
-            handle_run_screening(args.date, args.preset)
-            finish_job_run_success(run_date=args.date, finished_at=_now_iso())
-            return
-        except Exception as exc:
-            finish_job_run_failed(
-                run_date=args.date,
-                finished_at=_now_iso(),
-                error_message=str(exc),
-            )
-            raise
+        handle_run_daily(args.date, args.preset, args.batch_size, args.qps)
+        return
 
     if args.command == "schedule-screening":
         handle_schedule_screening(args.timezone)
         return
+
+    if args.command == "daily-smoke":
+        result = handle_daily_smoke(args.date, args.batch_size, args.qps)
+        status = str(result.get("status", "failed"))
+        error = result.get("error")
+        if status == "success":
+            print(f"[SMOKE][OK] run_date={args.date}")
+            return
+        if status == "skipped":
+            reason = "none" if error is None else str(error)
+            print(f"[SMOKE][SKIPPED] run_date={args.date} reason={reason}")
+            return
+        message = "unknown" if error is None else str(error)
+        print(f"[SMOKE][ALERT] run_date={args.date} error={message}")
+        raise SystemExit(1)
 
 
 if __name__ == "__main__":

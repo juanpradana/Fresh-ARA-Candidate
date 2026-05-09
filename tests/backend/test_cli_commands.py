@@ -1,3 +1,5 @@
+import pytest
+
 from app.backend.cli.main import main as cli_main
 
 
@@ -286,3 +288,58 @@ def test_run_daily_records_job_run_skipped_when_no_market_data(monkeypatch):
         "update:2026-05-11:50:2.0",
         "skipped:2026-05-11:no market data",
     ]
+
+
+def test_daily_smoke_prints_ok_for_success(monkeypatch, capsys):
+    def fake_smoke(date: str, batch_size: int, qps: float) -> dict:
+        assert date == "2026-05-09"
+        assert batch_size == 25
+        assert qps == 2.5
+        return {"status": "success", "skipped": False, "error": None}
+
+    monkeypatch.setattr("app.backend.cli.main.handle_daily_smoke", fake_smoke, raising=False)
+    monkeypatch.setattr(
+        "sys.argv",
+        ["cli", "daily-smoke", "--date", "2026-05-09", "--batch-size", "25", "--qps", "2.5"],
+    )
+
+    cli_main()
+
+    output = capsys.readouterr().out
+    assert "[SMOKE][OK] run_date=2026-05-09" in output
+
+
+def test_daily_smoke_prints_skipped_for_non_trading_day(monkeypatch, capsys):
+    def fake_smoke(date: str, batch_size: int, qps: float) -> dict:
+        assert date == "2026-05-11"
+        return {"status": "skipped", "skipped": True, "error": "no market data"}
+
+    monkeypatch.setattr("app.backend.cli.main.handle_daily_smoke", fake_smoke, raising=False)
+    monkeypatch.setattr(
+        "sys.argv",
+        ["cli", "daily-smoke", "--date", "2026-05-11"],
+    )
+
+    cli_main()
+
+    output = capsys.readouterr().out
+    assert "[SMOKE][SKIPPED] run_date=2026-05-11 reason=no market data" in output
+
+
+def test_daily_smoke_prints_alert_and_exits_for_failure(monkeypatch, capsys):
+    def fake_smoke(date: str, batch_size: int, qps: float) -> dict:
+        assert date == "2026-05-12"
+        return {"status": "failed", "skipped": False, "error": "market source unavailable"}
+
+    monkeypatch.setattr("app.backend.cli.main.handle_daily_smoke", fake_smoke, raising=False)
+    monkeypatch.setattr(
+        "sys.argv",
+        ["cli", "daily-smoke", "--date", "2026-05-12"],
+    )
+
+    with pytest.raises(SystemExit) as exc:
+        cli_main()
+
+    assert exc.value.code == 1
+    output = capsys.readouterr().out
+    assert "[SMOKE][ALERT] run_date=2026-05-12 error=market source unavailable" in output
