@@ -9,7 +9,7 @@ from app.backend.cli.commands.run_screening import handle_run_screening
 from app.backend.cli.commands.schedule_screening import handle_schedule_screening
 from app.backend.cli.commands.update_market import handle_update_market
 from app.backend.core.db import init_db
-from app.backend.services.alerts.service import capture_watchlist_alerts
+from app.backend.services.alerts.service import capture_system_alarm, capture_watchlist_alerts
 from app.backend.services.feature_engineering.service import compute_features
 from app.backend.services.market_data.service import fetch_daily_market_data
 from app.backend.services.scoring.service import score_candidate
@@ -57,7 +57,21 @@ def _now_iso() -> str:
     return datetime.utcnow().isoformat()
 
 
-def handle_run_daily(date: str, preset: str, batch_size: int, qps: float, raise_on_error: bool = True) -> dict:
+def _emit_system_alarm(run_date: str, code: str) -> bool:
+    try:
+        return capture_system_alarm(run_date=run_date, code=code)
+    except Exception:
+        return False
+
+
+def handle_run_daily(
+    date: str,
+    preset: str,
+    batch_size: int,
+    qps: float,
+    universe_mode: str = "external_live",
+    raise_on_error: bool = True,
+) -> dict:
     init_db()
     started = try_start_job_run(run_date=date, started_at=_now_iso())
     if not started:
@@ -74,10 +88,14 @@ def handle_run_daily(date: str, preset: str, batch_size: int, qps: float, raise_
         "tickers_error": 0,
         "rows_upserted": 0,
         "batch_count": 0,
+        "universe_mode": universe_mode,
+        "universe_source": "unknown",
+        "universe_count": 0,
+        "universe_fallback": False,
     }
     meta_json = json.dumps(meta_json_obj, separators=(",", ":"))
     try:
-        update_result = handle_update_market(date, batch_size, qps)
+        update_result = handle_update_market(date, batch_size, qps, universe_mode=universe_mode)
         expected = int(update_result.get("expected", 0))
         fetched = int(update_result.get("fetched", 0))
         tickers_ok = int(update_result.get("tickers_ok", 0))
@@ -86,6 +104,9 @@ def handle_run_daily(date: str, preset: str, batch_size: int, qps: float, raise_
         rows_upserted = int(update_result.get("rows_upserted", 0))
         batch_count = int(update_result.get("batch_count", 0))
         market_status = "complete" if update_result.get("is_complete", False) else ("empty" if fetched == 0 else "partial")
+        universe_source = str(update_result.get("universe_source", "unknown"))
+        universe_count = int(update_result.get("universe_count", 0))
+        universe_fallback = bool(update_result.get("universe_fallback", False))
         meta_json_obj = {
             "expected": expected,
             "fetched": fetched,
@@ -96,11 +117,16 @@ def handle_run_daily(date: str, preset: str, batch_size: int, qps: float, raise_
             "tickers_error": tickers_error,
             "rows_upserted": rows_upserted,
             "batch_count": batch_count,
+            "universe_mode": universe_mode,
+            "universe_source": universe_source,
+            "universe_count": universe_count,
+            "universe_fallback": universe_fallback,
         }
         meta_json = json.dumps(meta_json_obj, separators=(",", ":"))
 
         if not update_result.get("is_complete", False):
             if expected > 0 and fetched == 0:
+                _emit_system_alarm(run_date=date, code="system.no_market_data")
                 finish_job_run_skipped(
                     run_date=date,
                     finished_at=_now_iso(),
@@ -110,6 +136,7 @@ def handle_run_daily(date: str, preset: str, batch_size: int, qps: float, raise_
                 )
                 return {"status": "skipped", "error": "no market data"}
 
+            _emit_system_alarm(run_date=date, code="system.market_data_incomplete")
             finish_job_run_failed(
                 run_date=date,
                 finished_at=_now_iso(),
@@ -130,6 +157,7 @@ def handle_run_daily(date: str, preset: str, batch_size: int, qps: float, raise_
         )
         return {"status": "success", "error": None}
     except Exception as exc:
+        _emit_system_alarm(run_date=date, code=f"system.exception.{type(exc).__name__}")
         finish_job_run_failed(
             run_date=date,
             finished_at=_now_iso(),
@@ -142,8 +170,15 @@ def handle_run_daily(date: str, preset: str, batch_size: int, qps: float, raise_
         return {"status": "failed", "error": str(exc)}
 
 
-def handle_daily_smoke(date: str, batch_size: int, qps: float) -> dict:
-    return handle_run_daily(date=date, preset="balanced", batch_size=batch_size, qps=qps, raise_on_error=False)
+def handle_daily_smoke(date: str, batch_size: int, qps: float, universe_mode: str = "external_live") -> dict:
+    return handle_run_daily(
+        date=date,
+        preset="balanced",
+        batch_size=batch_size,
+        qps=qps,
+        universe_mode=universe_mode,
+        raise_on_error=False,
+    )
 
 
 def main() -> None:
@@ -154,6 +189,7 @@ def main() -> None:
     update_market_parser.add_argument("--date", required=True)
     update_market_parser.add_argument("--batch-size", type=int, default=50)
     update_market_parser.add_argument("--qps", type=float, default=2.0)
+    update_market_parser.add_argument("--universe-mode", default="external_live")
 
     backfill_market_parser = subparsers.add_parser("backfill-market")
     backfill_market_parser.add_argument("--start", required=True)
@@ -174,6 +210,7 @@ def main() -> None:
     run_daily_parser.add_argument("--preset", default="balanced")
     run_daily_parser.add_argument("--batch-size", type=int, default=50)
     run_daily_parser.add_argument("--qps", type=float, default=2.0)
+    run_daily_parser.add_argument("--universe-mode", default="external_live")
 
     schedule_screening_parser = subparsers.add_parser("schedule-screening")
     schedule_screening_parser.add_argument("--timezone", default="Asia/Jakarta")
@@ -182,11 +219,16 @@ def main() -> None:
     daily_smoke_parser.add_argument("--date", required=True)
     daily_smoke_parser.add_argument("--batch-size", type=int, default=50)
     daily_smoke_parser.add_argument("--qps", type=float, default=2.0)
+    daily_smoke_parser.add_argument("--universe-mode", default="external_live")
 
     args = parser.parse_args()
 
     if args.command == "update-market":
-        handle_update_market(args.date, args.batch_size, args.qps)
+        result = handle_update_market(args.date, args.batch_size, args.qps, universe_mode=args.universe_mode)
+        if not result.get("is_complete", False):
+            print(
+                f"[ALERT][MARKET] date={args.date} fetched={result.get('fetched', 0)} expected={result.get('expected', 0)} source={result.get('universe_source', 'unknown')}"
+            )
         return
 
     if args.command == "backfill-market":
@@ -202,7 +244,7 @@ def main() -> None:
         return
 
     if args.command == "run-daily":
-        handle_run_daily(args.date, args.preset, args.batch_size, args.qps)
+        handle_run_daily(args.date, args.preset, args.batch_size, args.qps, universe_mode=args.universe_mode)
         return
 
     if args.command == "schedule-screening":
@@ -210,7 +252,7 @@ def main() -> None:
         return
 
     if args.command == "daily-smoke":
-        result = handle_daily_smoke(args.date, args.batch_size, args.qps)
+        result = handle_daily_smoke(args.date, args.batch_size, args.qps, universe_mode=args.universe_mode)
         status = str(result.get("status", "failed"))
         error = result.get("error")
         if status == "success":

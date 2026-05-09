@@ -63,6 +63,52 @@ def test_meta_data_freshness_exists():
     assert "is_complete" in body["data"]
 
 
+def test_meta_data_freshness_reflects_latest_failed_run(monkeypatch):
+    monkeypatch.setattr("app.backend.api.routers.screener.get_latest_screen_date", lambda: "2026-05-18", raising=False)
+    monkeypatch.setattr(
+        "app.backend.api.routers.screener.get_recent_job_runs",
+        lambda limit=20: [
+            {
+                "job_name": "daily-screening",
+                "run_date": "2026-05-18",
+                "status": "failed",
+                "meta_json": '{"market_status":"partial"}',
+            }
+        ],
+        raising=False,
+    )
+
+    res = client.get("/api/v1/meta/data-freshness")
+    assert res.status_code == 200
+    body = res.json()
+    assert body["data"]["latest_screen_date"] == "2026-05-18"
+    assert body["data"]["is_complete"] is False
+    assert body["data"]["warning"] == "Data EOD belum complete"
+
+
+def test_meta_data_freshness_reflects_latest_success_run(monkeypatch):
+    monkeypatch.setattr("app.backend.api.routers.screener.get_latest_screen_date", lambda: "2026-05-19", raising=False)
+    monkeypatch.setattr(
+        "app.backend.api.routers.screener.get_recent_job_runs",
+        lambda limit=20: [
+            {
+                "job_name": "daily-screening",
+                "run_date": "2026-05-19",
+                "status": "success",
+                "meta_json": '{"market_status":"complete"}',
+            }
+        ],
+        raising=False,
+    )
+
+    res = client.get("/api/v1/meta/data-freshness")
+    assert res.status_code == 200
+    body = res.json()
+    assert body["data"]["latest_screen_date"] == "2026-05-19"
+    assert body["data"]["is_complete"] is True
+    assert body["data"]["warning"] is None
+
+
 def test_ticker_detail_and_history_exist():
     detail = client.get("/api/v1/screener/BBCA.JK?screen_date=2026-05-06")
     assert detail.status_code == 200

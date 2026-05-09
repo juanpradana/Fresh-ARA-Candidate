@@ -4,7 +4,7 @@ from app.backend.core.db import init_db
 from app.backend.repositories.sqlite.repo import get_missing_tickers_for_date, upsert_price_daily
 from app.backend.services.market_data import service as market_data_service
 from app.backend.services.market_data.guardrails import CircuitBreaker, RequestCache, RateLimiter
-from app.backend.services.universe.service import get_default_idx_universe
+from app.backend.services.universe.service import resolve_ticker_universe
 
 
 def handle_update_market(
@@ -12,13 +12,29 @@ def handle_update_market(
     batch_size: int = 50,
     qps: float = 2.0,
     on_event: Callable[[dict[str, object]], None] | None = None,
+    universe_mode: str = "external_live",
 ) -> dict:
     init_db()
-    tickers = get_default_idx_universe()
+    universe = resolve_ticker_universe(mode=universe_mode)
+    tickers = [str(ticker) for ticker in universe.get("tickers", [])]
+    universe_source = str(universe.get("source", "default_idx_fallback"))
+    universe_fallback = bool(universe.get("fallback_used", False))
     missing = get_missing_tickers_for_date(trade_date=date, tickers=tickers)
     limiter = RateLimiter(qps=qps) if qps > 0 else None
     breaker = CircuitBreaker(failure_threshold=5, reset_timeout=10.0)
     cache = RequestCache[list[dict]]()
+
+    if on_event is not None:
+        on_event(
+            {
+                "event": "update_market.universe_resolved",
+                "date": date,
+                "universe_mode": universe_mode,
+                "universe_source": universe_source,
+                "universe_count": len(tickers),
+                "universe_fallback": universe_fallback,
+            }
+        )
 
     fetched = 0
     tickers_ok = 0
@@ -95,6 +111,10 @@ def handle_update_market(
         "tickers_error": tickers_error,
         "rows_upserted": rows_upserted,
         "batch_count": batch_count,
+        "universe_mode": universe_mode,
+        "universe_source": universe_source,
+        "universe_count": len(tickers),
+        "universe_fallback": universe_fallback,
     }
     if on_event is not None:
         on_event(
@@ -109,6 +129,10 @@ def handle_update_market(
                 "tickers_error": tickers_error,
                 "rows_upserted": rows_upserted,
                 "batch_count": batch_count,
+                "universe_mode": universe_mode,
+                "universe_source": universe_source,
+                "universe_count": len(tickers),
+                "universe_fallback": universe_fallback,
             }
         )
     return result

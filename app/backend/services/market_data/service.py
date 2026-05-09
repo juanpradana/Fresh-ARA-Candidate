@@ -1,3 +1,5 @@
+from datetime import datetime, timedelta
+
 import yfinance as yf
 
 from app.backend.services.market_data.guardrails import (
@@ -37,7 +39,9 @@ def fetch_daily_market_data(
         limiter.wait()
 
     def operation() -> list[dict]:
-        history = yf.Ticker(ticker).history(start=date, end=date)
+        start_date = datetime.strptime(date, "%Y-%m-%d")
+        end_date = (start_date + timedelta(days=1)).strftime("%Y-%m-%d")
+        history = yf.Ticker(ticker).history(start=date, end=end_date)
         previous = yf.Ticker(ticker).history(period="5d")
 
         if history.empty:

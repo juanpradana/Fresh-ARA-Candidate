@@ -1,4 +1,5 @@
 import csv
+import json
 from io import BytesIO, StringIO
 
 from openpyxl import Workbook
@@ -40,11 +41,40 @@ def latest_screen_date() -> dict:
 def data_freshness() -> dict:
     init_db()
     latest = get_latest_screen_date()
+    runs = get_recent_job_runs(limit=20)
+    terminal = next((row for row in runs if row.get("status") in {"success", "failed", "skipped"}), None)
+
+    if terminal is None:
+        return {
+            "data": {
+                "latest_screen_date": latest,
+                "is_complete": latest is not None,
+                "warning": None if latest is not None else "Data EOD belum complete",
+            },
+            "meta": {},
+            "error": None,
+        }
+
+    status = str(terminal.get("status", ""))
+    meta_json = terminal.get("meta_json")
+    meta_data: dict[str, object] = {}
+    if isinstance(meta_json, str) and meta_json:
+        try:
+            parsed = json.loads(meta_json)
+            if isinstance(parsed, dict):
+                meta_data = parsed
+        except Exception:
+            meta_data = {}
+
+    market_status = str(meta_data.get("market_status", ""))
+    is_complete = status == "success" and market_status == "complete"
+    warning = None if is_complete else "Data EOD belum complete"
+
     return {
         "data": {
             "latest_screen_date": latest,
-            "is_complete": latest is not None,
-            "warning": None if latest is not None else "Data EOD belum complete",
+            "is_complete": is_complete,
+            "warning": warning,
         },
         "meta": {},
         "error": None,

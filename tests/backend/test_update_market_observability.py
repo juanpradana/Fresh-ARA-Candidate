@@ -4,8 +4,12 @@ from app.backend.cli.commands.update_market import handle_update_market
 def test_update_market_returns_observability_counters(monkeypatch):
     monkeypatch.setattr("app.backend.cli.commands.update_market.init_db", lambda: None, raising=False)
     monkeypatch.setattr(
-        "app.backend.cli.commands.update_market.get_default_idx_universe",
-        lambda: ["AAA.JK", "BBB.JK", "CCC.JK"],
+        "app.backend.cli.commands.update_market.resolve_ticker_universe",
+        lambda mode="external_live": {
+            "tickers": ["AAA.JK", "BBB.JK", "CCC.JK"],
+            "source": "external_live",
+            "fallback_used": False,
+        },
         raising=False,
     )
     monkeypatch.setattr(
@@ -46,14 +50,21 @@ def test_update_market_returns_observability_counters(monkeypatch):
     assert result["tickers_error"] == 1
     assert result["rows_upserted"] == 1
     assert result["batch_count"] == 2
+    assert result["universe_source"] == "external_live"
+    assert result["universe_count"] == 3
+    assert result["universe_fallback"] is False
     assert len(writes) == 1
 
 
 def test_update_market_collects_observability_events(monkeypatch):
     monkeypatch.setattr("app.backend.cli.commands.update_market.init_db", lambda: None, raising=False)
     monkeypatch.setattr(
-        "app.backend.cli.commands.update_market.get_default_idx_universe",
-        lambda: ["AAA.JK", "BBB.JK"],
+        "app.backend.cli.commands.update_market.resolve_ticker_universe",
+        lambda mode="external_live": {
+            "tickers": ["AAA.JK", "BBB.JK"],
+            "source": "external_live",
+            "fallback_used": False,
+        },
         raising=False,
     )
     monkeypatch.setattr(
@@ -86,6 +97,9 @@ def test_update_market_collects_observability_events(monkeypatch):
         "update_market.ticker_outcome",
         "update_market.ticker_outcome",
     ]
+    universe_events = [event for event in events if event["event"] == "update_market.universe_resolved"]
+    assert len(universe_events) == 1
+    assert universe_events[0]["universe_source"] == "external_live"
     completed = [event for event in events if event["event"] == "update_market.run_completed"]
     assert len(completed) == 1
     assert completed[0]["expected"] == 2

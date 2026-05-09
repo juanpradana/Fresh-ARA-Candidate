@@ -37,3 +37,13 @@ def capture_watchlist_alerts(run_date: str, preset: str = "balanced") -> int:
                 inserted += 1
 
     return inserted
+
+
+def capture_system_alarm(run_date: str, code: str) -> bool:
+    return create_alert_event(
+        run_date=run_date,
+        watchlist_name="__system__",
+        ticker="__market__",
+        preset=code,
+        created_at=_now_iso(),
+    )

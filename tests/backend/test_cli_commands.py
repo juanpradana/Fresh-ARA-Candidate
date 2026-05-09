@@ -8,15 +8,28 @@ from app.backend.cli.main import main as cli_main
 def test_update_market_command_dispatches(monkeypatch):
     captured: dict[str, object] = {}
 
-    def fake_handler(date: str, batch_size: int, qps: float) -> None:
+    def fake_handler(date: str, batch_size: int, qps: float, universe_mode: str = "external_live") -> dict:
         captured["date"] = date
         captured["batch_size"] = batch_size
         captured["qps"] = qps
+        captured["universe_mode"] = universe_mode
+        return {"is_complete": True, "expected": 0, "fetched": 0, "universe_source": universe_mode}
 
     monkeypatch.setattr("app.backend.cli.main.handle_update_market", fake_handler, raising=False)
     monkeypatch.setattr(
         "sys.argv",
-        ["cli", "update-market", "--date", "2026-05-07", "--batch-size", "25", "--qps", "2.5"],
+        [
+            "cli",
+            "update-market",
+            "--date",
+            "2026-05-07",
+            "--batch-size",
+            "25",
+            "--qps",
+            "2.5",
+            "--universe-mode",
+            "external_live",
+        ],
     )
 
     cli_main()
@@ -25,6 +38,7 @@ def test_update_market_command_dispatches(monkeypatch):
         "date": "2026-05-07",
         "batch_size": 25,
         "qps": 2.5,
+        "universe_mode": "external_live",
     }
 
 
@@ -71,7 +85,7 @@ def test_schedule_screening_command_dispatches(monkeypatch):
 def test_run_daily_orchestrates_pipeline_handlers(monkeypatch):
     calls: list[str] = []
 
-    def fake_update(date: str, batch_size: int, qps: float) -> dict:
+    def fake_update(date: str, batch_size: int, qps: float, universe_mode: str = "external_live") -> dict:
         calls.append(f"update:{date}:{batch_size}:{qps}")
         return {"is_complete": True}
 
@@ -99,6 +113,7 @@ def test_run_daily_orchestrates_pipeline_handlers(monkeypatch):
     monkeypatch.setattr("app.backend.cli.main.handle_update_market", fake_update, raising=False)
     monkeypatch.setattr("app.backend.cli.main.handle_compute_features", fake_compute, raising=False)
     monkeypatch.setattr("app.backend.cli.main.handle_run_screening", fake_screen, raising=False)
+    monkeypatch.setattr("app.backend.cli.main.capture_watchlist_alerts", lambda run_date, preset: 0, raising=False)
     monkeypatch.setattr("app.backend.cli.main.run_daily_job", fail_legacy, raising=False)
     monkeypatch.setattr(
         "sys.argv",
@@ -128,7 +143,7 @@ def test_run_daily_orchestrates_pipeline_handlers(monkeypatch):
 def test_run_daily_blocks_when_market_data_incomplete(monkeypatch):
     calls: list[str] = []
 
-    def fake_update(date: str, batch_size: int, qps: float) -> dict:
+    def fake_update(date: str, batch_size: int, qps: float, universe_mode: str = "external_live") -> dict:
         calls.append(f"update:{date}:{batch_size}:{qps}")
         return {"is_complete": False}
 
@@ -200,7 +215,7 @@ def test_run_daily_records_job_run_success(monkeypatch):
             }
         )
 
-    def fake_update(date: str, batch_size: int, qps: float) -> dict:
+    def fake_update(date: str, batch_size: int, qps: float, universe_mode: str = "external_live") -> dict:
         calls.append({"event": "update", "date": date, "batch_size": batch_size, "qps": qps})
         return {
             "is_complete": True,
@@ -211,6 +226,9 @@ def test_run_daily_records_job_run_success(monkeypatch):
             "tickers_error": 1,
             "rows_upserted": 7,
             "batch_count": 1,
+            "universe_source": "external_live",
+            "universe_count": 10,
+            "universe_fallback": False,
         }
 
     def fake_compute(date: str, feature_version: str) -> None:
@@ -226,6 +244,7 @@ def test_run_daily_records_job_run_success(monkeypatch):
     monkeypatch.setattr("app.backend.cli.main.handle_update_market", fake_update, raising=False)
     monkeypatch.setattr("app.backend.cli.main.handle_compute_features", fake_compute, raising=False)
     monkeypatch.setattr("app.backend.cli.main.handle_run_screening", fake_screen, raising=False)
+    monkeypatch.setattr("app.backend.cli.main.capture_watchlist_alerts", lambda run_date, preset: 0, raising=False)
     monkeypatch.setattr("sys.argv", ["cli", "run-daily", "--date", "2026-05-09"])
 
     cli_main()
@@ -252,6 +271,10 @@ def test_run_daily_records_job_run_success(monkeypatch):
         "tickers_error": 1,
         "rows_upserted": 7,
         "batch_count": 1,
+        "universe_mode": "external_live",
+        "universe_source": "external_live",
+        "universe_count": 10,
+        "universe_fallback": False,
     }
 
 
@@ -294,7 +317,7 @@ def test_run_daily_records_job_run_failed_when_incomplete(monkeypatch):
     ) -> None:
         calls.append({"event": "skipped", "run_date": run_date, "message": message, "rows": rows_affected, "meta": meta_json})
 
-    def fake_update(date: str, batch_size: int, qps: float) -> dict:
+    def fake_update(date: str, batch_size: int, qps: float, universe_mode: str = "external_live") -> dict:
         calls.append({"event": "update", "date": date, "batch_size": batch_size, "qps": qps})
         return {
             "is_complete": False,
@@ -305,6 +328,9 @@ def test_run_daily_records_job_run_failed_when_incomplete(monkeypatch):
             "tickers_error": 2,
             "rows_upserted": 6,
             "batch_count": 1,
+            "universe_source": "external_live",
+            "universe_count": 10,
+            "universe_fallback": False,
         }
 
     def fake_compute(date: str, feature_version: str) -> None:
@@ -315,9 +341,16 @@ def test_run_daily_records_job_run_failed_when_incomplete(monkeypatch):
 
     monkeypatch.setattr("app.backend.cli.main.init_db", fake_init_db, raising=False)
     monkeypatch.setattr("app.backend.cli.main.try_start_job_run", fake_start, raising=False)
+    alarm_codes: list[str] = []
+
     monkeypatch.setattr("app.backend.cli.main.finish_job_run_success", fake_success, raising=False)
     monkeypatch.setattr("app.backend.cli.main.finish_job_run_failed", fake_failed, raising=False)
     monkeypatch.setattr("app.backend.cli.main.finish_job_run_skipped", fake_skipped, raising=False)
+    monkeypatch.setattr(
+        "app.backend.cli.main._emit_system_alarm",
+        lambda run_date, code: alarm_codes.append(code) or True,
+        raising=False,
+    )
     monkeypatch.setattr("app.backend.cli.main.handle_update_market", fake_update, raising=False)
     monkeypatch.setattr("app.backend.cli.main.handle_compute_features", fake_compute, raising=False)
     monkeypatch.setattr("app.backend.cli.main.handle_run_screening", fake_screen, raising=False)
@@ -326,6 +359,7 @@ def test_run_daily_records_job_run_failed_when_incomplete(monkeypatch):
     cli_main()
 
     assert [entry["event"] for entry in calls] == ["init", "start", "update", "failed"]
+    assert alarm_codes == ["system.market_data_incomplete"]
     failed = calls[-1]
     assert failed["error"] == "market data incomplete"
     assert failed["rows"] == 3
@@ -339,6 +373,10 @@ def test_run_daily_records_job_run_failed_when_incomplete(monkeypatch):
         "tickers_error": 2,
         "rows_upserted": 6,
         "batch_count": 1,
+        "universe_mode": "external_live",
+        "universe_source": "external_live",
+        "universe_count": 10,
+        "universe_fallback": False,
     }
 
 
@@ -381,7 +419,7 @@ def test_run_daily_records_job_run_skipped_when_no_market_data(monkeypatch):
             }
         )
 
-    def fake_update(date: str, batch_size: int, qps: float) -> dict:
+    def fake_update(date: str, batch_size: int, qps: float, universe_mode: str = "external_live") -> dict:
         calls.append({"event": "update", "date": date, "batch_size": batch_size, "qps": qps})
         return {
             "is_complete": False,
@@ -392,6 +430,9 @@ def test_run_daily_records_job_run_skipped_when_no_market_data(monkeypatch):
             "tickers_error": 0,
             "rows_upserted": 0,
             "batch_count": 1,
+            "universe_source": "external_live",
+            "universe_count": 5,
+            "universe_fallback": False,
         }
 
     def fake_compute(date: str, feature_version: str) -> None:
@@ -402,9 +443,16 @@ def test_run_daily_records_job_run_skipped_when_no_market_data(monkeypatch):
 
     monkeypatch.setattr("app.backend.cli.main.init_db", fake_init_db, raising=False)
     monkeypatch.setattr("app.backend.cli.main.try_start_job_run", fake_start, raising=False)
+    alarm_codes: list[str] = []
+
     monkeypatch.setattr("app.backend.cli.main.finish_job_run_success", fake_success, raising=False)
     monkeypatch.setattr("app.backend.cli.main.finish_job_run_failed", fake_failed, raising=False)
     monkeypatch.setattr("app.backend.cli.main.finish_job_run_skipped", fake_skipped, raising=False)
+    monkeypatch.setattr(
+        "app.backend.cli.main._emit_system_alarm",
+        lambda run_date, code: alarm_codes.append(code) or True,
+        raising=False,
+    )
     monkeypatch.setattr("app.backend.cli.main.handle_update_market", fake_update, raising=False)
     monkeypatch.setattr("app.backend.cli.main.handle_compute_features", fake_compute, raising=False)
     monkeypatch.setattr("app.backend.cli.main.handle_run_screening", fake_screen, raising=False)
@@ -413,6 +461,7 @@ def test_run_daily_records_job_run_skipped_when_no_market_data(monkeypatch):
     cli_main()
 
     assert [entry["event"] for entry in calls] == ["init", "start", "update", "skipped"]
+    assert alarm_codes == ["system.no_market_data"]
     skipped = calls[-1]
     assert skipped["message"] == "no market data"
     assert skipped["rows"] == 0
@@ -426,11 +475,15 @@ def test_run_daily_records_job_run_skipped_when_no_market_data(monkeypatch):
         "tickers_error": 0,
         "rows_upserted": 0,
         "batch_count": 1,
+        "universe_mode": "external_live",
+        "universe_source": "external_live",
+        "universe_count": 5,
+        "universe_fallback": False,
     }
 
 
 def test_daily_smoke_prints_ok_for_success(monkeypatch, capsys):
-    def fake_smoke(date: str, batch_size: int, qps: float) -> dict:
+    def fake_smoke(date: str, batch_size: int, qps: float, universe_mode: str = "external_live") -> dict:
         assert date == "2026-05-09"
         assert batch_size == 25
         assert qps == 2.5
@@ -449,7 +502,7 @@ def test_daily_smoke_prints_ok_for_success(monkeypatch, capsys):
 
 
 def test_daily_smoke_prints_skipped_for_non_trading_day(monkeypatch, capsys):
-    def fake_smoke(date: str, batch_size: int, qps: float) -> dict:
+    def fake_smoke(date: str, batch_size: int, qps: float, universe_mode: str = "external_live") -> dict:
         assert date == "2026-05-11"
         return {"status": "skipped", "skipped": True, "error": "no market data"}
 
@@ -466,7 +519,7 @@ def test_daily_smoke_prints_skipped_for_non_trading_day(monkeypatch, capsys):
 
 
 def test_daily_smoke_prints_alert_and_exits_for_failure(monkeypatch, capsys):
-    def fake_smoke(date: str, batch_size: int, qps: float) -> dict:
+    def fake_smoke(date: str, batch_size: int, qps: float, universe_mode: str = "external_live") -> dict:
         assert date == "2026-05-12"
         return {"status": "failed", "skipped": False, "error": "market source unavailable"}
 
@@ -514,9 +567,16 @@ def test_run_daily_records_job_run_failed_on_exception_with_metrics(monkeypatch)
             }
         )
 
-    def fake_update(date: str, batch_size: int, qps: float) -> dict:
+    def fake_update(date: str, batch_size: int, qps: float, universe_mode: str = "external_live") -> dict:
         calls.append({"event": "update", "date": date, "batch_size": batch_size, "qps": qps})
-        return {"is_complete": True, "expected": 9, "fetched": 4}
+        return {
+            "is_complete": True,
+            "expected": 9,
+            "fetched": 4,
+            "universe_source": "external_live",
+            "universe_count": 9,
+            "universe_fallback": False,
+        }
 
     def boom_compute(date: str, feature_version: str) -> None:
         calls.append({"event": "compute", "date": date, "feature_version": feature_version})
@@ -524,17 +584,26 @@ def test_run_daily_records_job_run_failed_on_exception_with_metrics(monkeypatch)
 
     monkeypatch.setattr("app.backend.cli.main.init_db", fake_init_db, raising=False)
     monkeypatch.setattr("app.backend.cli.main.try_start_job_run", fake_start, raising=False)
+    alarm_codes: list[str] = []
+
     monkeypatch.setattr("app.backend.cli.main.finish_job_run_success", fake_success, raising=False)
     monkeypatch.setattr("app.backend.cli.main.finish_job_run_failed", fake_failed, raising=False)
+    monkeypatch.setattr(
+        "app.backend.cli.main._emit_system_alarm",
+        lambda run_date, code: alarm_codes.append(code) or True,
+        raising=False,
+    )
     monkeypatch.setattr("app.backend.cli.main.handle_update_market", fake_update, raising=False)
     monkeypatch.setattr("app.backend.cli.main.handle_compute_features", boom_compute, raising=False)
     monkeypatch.setattr("app.backend.cli.main.handle_run_screening", lambda date, preset: None, raising=False)
+    monkeypatch.setattr("app.backend.cli.main.capture_watchlist_alerts", lambda run_date, preset: 0, raising=False)
     monkeypatch.setattr("sys.argv", ["cli", "run-daily", "--date", "2026-05-13"])
 
     with pytest.raises(RuntimeError) as exc:
         cli_main()
 
     assert "compute exploded" in str(exc.value)
+    assert alarm_codes == ["system.exception.RuntimeError"]
     assert [entry["event"] for entry in calls] == ["init", "start", "update", "compute", "failed"]
     failed = calls[-1]
     assert failed["run_date"] == "2026-05-13"
@@ -550,4 +619,8 @@ def test_run_daily_records_job_run_failed_on_exception_with_metrics(monkeypatch)
         "tickers_error": 0,
         "rows_upserted": 0,
         "batch_count": 0,
+        "universe_mode": "external_live",
+        "universe_source": "external_live",
+        "universe_count": 9,
+        "universe_fallback": False,
     }

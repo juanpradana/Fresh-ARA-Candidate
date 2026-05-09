@@ -8,7 +8,7 @@ from app.backend.repositories.sqlite.repo import (
     upsert_feature_daily,
     upsert_screening_result,
 )
-from app.backend.services.alerts.service import capture_watchlist_alerts
+from app.backend.services.alerts.service import capture_system_alarm, capture_watchlist_alerts
 
 client = TestClient(app)
 
@@ -129,3 +129,22 @@ def test_alerts_api_returns_recent_events(tmp_path, monkeypatch):
     assert body["data"][0]["ticker"] == "TLKM.JK"
     assert body["meta"]["limit"] == 5
     assert body["error"] is None
+
+
+def test_capture_system_alarm_is_idempotent_and_visible_in_recent_api(tmp_path, monkeypatch):
+    monkeypatch.setenv("APP_DB_PATH", str(tmp_path / "alerts.sqlite"))
+    init_db()
+
+    first = capture_system_alarm(run_date="2026-05-18", code="system.market_data_incomplete")
+    second = capture_system_alarm(run_date="2026-05-18", code="system.market_data_incomplete")
+
+    assert first is True
+    assert second is False
+
+    res = client.get("/api/v1/alerts/recent?limit=5")
+    assert res.status_code == 200
+    body = res.json()
+    assert body["data"]
+    assert body["data"][0]["watchlist_name"] == "__system__"
+    assert body["data"][0]["ticker"] == "__market__"
+    assert body["data"][0]["preset"] == "system.market_data_incomplete"
