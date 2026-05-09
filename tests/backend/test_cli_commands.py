@@ -67,8 +67,9 @@ def test_schedule_screening_command_dispatches(monkeypatch):
 def test_run_daily_orchestrates_pipeline_handlers(monkeypatch):
     calls: list[str] = []
 
-    def fake_update(date: str, batch_size: int, qps: float) -> None:
+    def fake_update(date: str, batch_size: int, qps: float) -> dict:
         calls.append(f"update:{date}:{batch_size}:{qps}")
+        return {"is_complete": True}
 
     def fake_compute(date: str, feature_version: str) -> None:
         calls.append(f"compute:{date}:{feature_version}")
@@ -106,3 +107,29 @@ def test_run_daily_orchestrates_pipeline_handlers(monkeypatch):
         "compute:2026-05-07:v1",
         "screen:2026-05-07:aggressive",
     ]
+
+
+def test_run_daily_blocks_when_market_data_incomplete(monkeypatch):
+    calls: list[str] = []
+
+    def fake_update(date: str, batch_size: int, qps: float) -> dict:
+        calls.append(f"update:{date}:{batch_size}:{qps}")
+        return {"is_complete": False}
+
+    def fake_compute(_: str, __: str) -> None:
+        calls.append("compute")
+
+    def fake_screen(_: str, __: str) -> None:
+        calls.append("screen")
+
+    monkeypatch.setattr("app.backend.cli.main.handle_update_market", fake_update, raising=False)
+    monkeypatch.setattr("app.backend.cli.main.handle_compute_features", fake_compute, raising=False)
+    monkeypatch.setattr("app.backend.cli.main.handle_run_screening", fake_screen, raising=False)
+    monkeypatch.setattr(
+        "sys.argv",
+        ["cli", "run-daily", "--date", "2026-05-07"],
+    )
+
+    cli_main()
+
+    assert calls == ["update:2026-05-07:50:2.0"]

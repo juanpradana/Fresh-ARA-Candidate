@@ -94,7 +94,9 @@ def main() -> None:
         return
 
     if args.command == "run-daily":
-        handle_update_market(args.date, args.batch_size, args.qps)
+        update_result = handle_update_market(args.date, args.batch_size, args.qps)
+        if not update_result.get("is_complete", False):
+            return
         handle_compute_features(args.date, "v1")
         handle_run_screening(args.date, args.preset)
         return

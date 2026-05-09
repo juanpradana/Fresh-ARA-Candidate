@@ -5,7 +5,7 @@ from app.backend.services.market_data.guardrails import CircuitBreaker, RequestC
 from app.backend.services.universe.service import get_default_idx_universe
 
 
-def handle_update_market(date: str, batch_size: int = 50, qps: float = 2.0) -> None:
+def handle_update_market(date: str, batch_size: int = 50, qps: float = 2.0) -> dict:
     init_db()
     tickers = get_default_idx_universe()
     missing = get_missing_tickers_for_date(trade_date=date, tickers=tickers)
@@ -13,6 +13,7 @@ def handle_update_market(date: str, batch_size: int = 50, qps: float = 2.0) -> N
     breaker = CircuitBreaker(failure_threshold=5, reset_timeout=10.0)
     cache = RequestCache[list[dict]]()
 
+    fetched = 0
     for index in range(0, len(missing), batch_size):
         batch = missing[index:index + batch_size]
         for ticker in batch:
@@ -26,6 +27,8 @@ def handle_update_market(date: str, batch_size: int = 50, qps: float = 2.0) -> N
                 )
             except TypeError:
                 rows = market_data_service.fetch_daily_market_data(ticker, date)
+            if rows:
+                fetched += 1
             for row in rows:
                 upsert_price_daily(
                     trade_date=date,
@@ -37,3 +40,11 @@ def handle_update_market(date: str, batch_size: int = 50, qps: float = 2.0) -> N
                     volume=row["volume"],
                     source="yfinance",
                 )
+
+    expected = len(missing)
+    return {
+        "date": date,
+        "expected": expected,
+        "fetched": fetched,
+        "is_complete": fetched == expected,
+    }

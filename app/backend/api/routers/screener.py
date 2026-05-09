@@ -34,6 +34,21 @@ def latest_screen_date() -> dict:
     }
 
 
+@router.get("/meta/data-freshness")
+def data_freshness() -> dict:
+    init_db()
+    latest = get_latest_screen_date()
+    return {
+        "data": {
+            "latest_screen_date": latest,
+            "is_complete": latest is not None,
+            "warning": None if latest is not None else "Data EOD belum complete",
+        },
+        "meta": {},
+        "error": None,
+    }
+
+
 @router.get("/meta/presets")
 def presets() -> dict:
     return {

@@ -39,6 +39,14 @@ def test_meta_latest_screen_date_exists():
     assert body["data"]["latest_screen_date"] is not None
 
 
+def test_meta_data_freshness_exists():
+    res = client.get("/api/v1/meta/data-freshness")
+    assert res.status_code == 200
+    body = res.json()
+    assert "latest_screen_date" in body["data"]
+    assert "is_complete" in body["data"]
+
+
 def test_ticker_detail_and_history_exist():
     detail = client.get("/api/v1/screener/BBCA.JK?screen_date=2026-05-06")
     assert detail.status_code == 200
