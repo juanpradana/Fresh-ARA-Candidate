@@ -61,6 +61,14 @@ def test_ticker_detail_and_history_exist():
     assert detail.status_code == 200
     detail_body = detail.json()
     assert detail_body["data"]["ticker"] == "BBCA.JK"
+    assert "vol_ratio" in detail_body["data"]
+    assert "range_pct" in detail_body["data"]
+    assert "price_action" in detail_body["data"]
+    assert "is_ara_t0" in detail_body["data"]
+    assert "pass_vol_ratio" in detail_body["data"]
+    assert "pass_range_pct" in detail_body["data"]
+    assert "pass_price_action" in detail_body["data"]
+    assert "pass_is_ara_t0" in detail_body["data"]
 
     history = client.get("/api/v1/screener/BBCA.JK/history?start=2026-05-01&end=2026-05-31&preset=balanced")
     assert history.status_code == 200

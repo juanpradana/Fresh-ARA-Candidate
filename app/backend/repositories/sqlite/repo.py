@@ -114,6 +114,25 @@ def get_screener_detail(ticker: str, screen_date: str | None, preset: str = "bal
         row = session.execute(stmt.order_by(ScreeningResult.rank_num.asc())).scalars().first()
         if row is None:
             return None
+
+        feature_row = session.execute(
+            select(FeatureDaily).where(
+                FeatureDaily.trade_date == row.screen_date,
+                FeatureDaily.ticker == row.ticker,
+                FeatureDaily.feature_version == "v1",
+            )
+        ).scalar_one_or_none()
+
+        vol_ratio = feature_row.vol_ratio if feature_row is not None else None
+        range_pct = feature_row.range_pct if feature_row is not None else None
+        price_action = feature_row.price_action if feature_row is not None else None
+        is_ara_t0 = feature_row.is_ara_t0 if feature_row is not None else None
+
+        pass_vol_ratio = 1 if (vol_ratio is not None and 0.75 <= vol_ratio <= 1.25) else 0
+        pass_range_pct = 1 if (range_pct is not None and 0.50 <= range_pct <= 1.00) else 0
+        pass_price_action = 1 if (price_action is not None and price_action < 0.70) else 0
+        pass_is_ara_t0 = 1 if is_ara_t0 == 0 else 0
+
         return {
             "screen_date": row.screen_date,
             "ticker": row.ticker,
@@ -121,6 +140,14 @@ def get_screener_detail(ticker: str, screen_date: str | None, preset: str = "bal
             "rank_num": row.rank_num,
             "pass_count": row.pass_count,
             "category": row.category,
+            "vol_ratio": vol_ratio,
+            "range_pct": range_pct,
+            "price_action": price_action,
+            "is_ara_t0": is_ara_t0,
+            "pass_vol_ratio": pass_vol_ratio,
+            "pass_range_pct": pass_range_pct,
+            "pass_price_action": pass_price_action,
+            "pass_is_ara_t0": pass_is_ara_t0,
         }
     finally:
         session.close()
