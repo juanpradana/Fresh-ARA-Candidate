@@ -2,6 +2,11 @@ from fastapi.testclient import TestClient
 
 from app.backend.api.app import app
 from app.backend.cli.main import main as cli_main
+from app.backend.core.db import init_db
+from app.backend.repositories.sqlite.repo import (
+    upsert_feature_daily,
+    upsert_screening_result,
+)
 
 client = TestClient(app)
 
@@ -103,6 +108,60 @@ def test_ticker_detail_and_history_return_stable_shape_for_unknown_ticker():
     assert "start" in history_body["meta"]
     assert "end" in history_body["meta"]
     assert "preset" in history_body["meta"]
+
+
+def test_ticker_detail_pass_flags_follow_requested_preset():
+    init_db()
+    upsert_feature_daily(
+        trade_date="2026-05-13",
+        ticker="PRESET.JK",
+        vol_ratio=1.0,
+        range_pct=0.8,
+        price_action=0.6,
+        is_ara_t0=0,
+        feature_version="v1",
+    )
+    upsert_screening_result(
+        screen_date="2026-05-13",
+        ticker="PRESET.JK",
+        preset_name="balanced",
+        score=0.8,
+        pass_count=4,
+        category="ideal",
+    )
+    upsert_screening_result(
+        screen_date="2026-05-13",
+        ticker="PRESET.JK",
+        preset_name="conservative",
+        score=0.8,
+        pass_count=3,
+        category="candidate",
+    )
+
+    balanced = client.get("/api/v1/screener/PRESET.JK?screen_date=2026-05-13&preset=balanced")
+    assert balanced.status_code == 200
+    balanced_body = balanced.json()
+
+    conservative = client.get("/api/v1/screener/PRESET.JK?screen_date=2026-05-13&preset=conservative")
+    assert conservative.status_code == 200
+    conservative_body = conservative.json()
+
+    assert balanced_body["data"] is not None
+    assert conservative_body["data"] is not None
+    assert balanced_body["data"]["pass_price_action"] == 1
+    assert conservative_body["data"]["pass_price_action"] == 0
+
+    history_balanced = client.get("/api/v1/screener/PRESET.JK/history?start=2026-05-01&end=2026-05-31&preset=balanced")
+    assert history_balanced.status_code == 200
+    history_balanced_body = history_balanced.json()
+    assert history_balanced_body["data"]
+    assert history_balanced_body["data"][0]["pass_price_action"] == 1
+
+    history_conservative = client.get("/api/v1/screener/PRESET.JK/history?start=2026-05-01&end=2026-05-31&preset=conservative")
+    assert history_conservative.status_code == 200
+    history_conservative_body = history_conservative.json()
+    assert history_conservative_body["data"]
+    assert history_conservative_body["data"][0]["pass_price_action"] == 0
 
 
 def test_meta_presets_returns_default_presets():

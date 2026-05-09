@@ -135,14 +135,25 @@ def get_screener_detail(ticker: str, screen_date: str | None, preset: str = "bal
             )
         ).scalar_one_or_none()
 
+        preset_row = next(
+            (item for item in get_default_presets() if item["preset_name"] == preset),
+            get_default_presets()[1],
+        )
+
         vol_ratio = feature_row.vol_ratio if feature_row is not None else None
         range_pct = feature_row.range_pct if feature_row is not None else None
         price_action = feature_row.price_action if feature_row is not None else None
         is_ara_t0 = feature_row.is_ara_t0 if feature_row is not None else None
 
-        pass_vol_ratio = 1 if (vol_ratio is not None and 0.75 <= vol_ratio <= 1.25) else 0
-        pass_range_pct = 1 if (range_pct is not None and 0.50 <= range_pct <= 1.00) else 0
-        pass_price_action = 1 if (price_action is not None and price_action < 0.70) else 0
+        pass_vol_ratio = 1 if (
+            vol_ratio is not None and preset_row["vol_ratio_min"] <= vol_ratio <= preset_row["vol_ratio_max"]
+        ) else 0
+        pass_range_pct = 1 if (
+            range_pct is not None and preset_row["range_pct_min"] <= range_pct <= preset_row["range_pct_max"]
+        ) else 0
+        pass_price_action = 1 if (
+            price_action is not None and price_action < preset_row["price_action_max"]
+        ) else 0
         pass_is_ara_t0 = 1 if is_ara_t0 == 0 else 0
 
         return {
@@ -195,14 +206,25 @@ def get_screener_history(ticker: str, start: str, end: str, preset: str = "balan
         enriched_rows: list[dict] = []
         for row in rows:
             feature_row = features_by_date.get(row.screen_date)
+            preset_row = next(
+                (item for item in get_default_presets() if item["preset_name"] == preset),
+                get_default_presets()[1],
+            )
+
             vol_ratio = feature_row.vol_ratio if feature_row is not None else None
             range_pct = feature_row.range_pct if feature_row is not None else None
             price_action = feature_row.price_action if feature_row is not None else None
             is_ara_t0 = feature_row.is_ara_t0 if feature_row is not None else None
 
-            pass_vol_ratio = 1 if (vol_ratio is not None and 0.75 <= vol_ratio <= 1.25) else 0
-            pass_range_pct = 1 if (range_pct is not None and 0.50 <= range_pct <= 1.00) else 0
-            pass_price_action = 1 if (price_action is not None and price_action < 0.70) else 0
+            pass_vol_ratio = 1 if (
+                vol_ratio is not None and preset_row["vol_ratio_min"] <= vol_ratio <= preset_row["vol_ratio_max"]
+            ) else 0
+            pass_range_pct = 1 if (
+                range_pct is not None and preset_row["range_pct_min"] <= range_pct <= preset_row["range_pct_max"]
+            ) else 0
+            pass_price_action = 1 if (
+                price_action is not None and price_action < preset_row["price_action_max"]
+            ) else 0
             pass_is_ara_t0 = 1 if is_ara_t0 == 0 else 0
 
             enriched_rows.append(
