@@ -232,8 +232,10 @@ def main() -> None:
     export_market_parser.add_argument("--start")
     export_market_parser.add_argument("--end")
     export_market_parser.add_argument("--output", required=True)
+    export_market_parser.add_argument("--dataset", choices=["prices", "features"], default="prices")
     export_market_parser.add_argument("--source")
     export_market_parser.add_argument("--tickers")
+    export_market_parser.add_argument("--feature-version", default="v1")
     export_market_parser.add_argument("--format", choices=["csv", "parquet"], default="csv")
 
     args = parser.parse_args()
@@ -288,8 +290,10 @@ def main() -> None:
             start=args.start,
             end=args.end,
             output=args.output,
+            dataset=args.dataset,
             source=args.source,
             tickers=args.tickers,
+            feature_version=args.feature_version,
             format=args.format,
         )
         return

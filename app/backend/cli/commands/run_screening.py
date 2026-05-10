@@ -28,10 +28,11 @@ def handle_run_screening(date: str, preset: str = "balanced", feature_version: s
     init_db()
     rows = get_feature_rows_by_date(trade_date=date, feature_version=feature_version)
     active_preset = _resolve_preset(preset)
+    feature_set = "rich_v1" if feature_version == "v2" else "legacy"
 
     for features in rows:
-        passed = is_fresh_ara_candidate(features, active_preset)
-        score = score_candidate(features)
+        passed = is_fresh_ara_candidate(features, active_preset, feature_set=feature_set)
+        score = score_candidate(features, feature_set=feature_set)
         pass_vol_ratio = 1 if active_preset["vol_ratio_min"] <= features["vol_ratio"] <= active_preset["vol_ratio_max"] else 0
         pass_range_pct = 1 if active_preset["range_pct_min"] <= features["range_pct"] <= active_preset["range_pct_max"] else 0
         pass_price_action = 1 if features["price_action"] < active_preset["price_action_max"] else 0

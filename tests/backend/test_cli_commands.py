@@ -204,16 +204,20 @@ def test_export_market_data_command_dispatches_date_mode(monkeypatch):
         start: str | None,
         end: str | None,
         output: str,
-        source: str | None,
-        tickers: str | None,
+        dataset: str = "prices",
+        source: str | None = None,
+        tickers: str | None = None,
+        feature_version: str = "v1",
         format: str = "csv",
     ) -> None:
         captured["date"] = date
         captured["start"] = start
         captured["end"] = end
         captured["output"] = output
+        captured["dataset"] = dataset
         captured["source"] = source
         captured["tickers"] = tickers
+        captured["feature_version"] = feature_version
         captured["format"] = format
 
     monkeypatch.setattr("app.backend.cli.main.handle_export_market_data", fake_handler, raising=False)
@@ -236,8 +240,10 @@ def test_export_market_data_command_dispatches_date_mode(monkeypatch):
         "start": None,
         "end": None,
         "output": "data/market.csv",
+        "dataset": "prices",
         "source": None,
         "tickers": None,
+        "feature_version": "v1",
         "format": "csv",
     }
 
@@ -250,16 +256,20 @@ def test_export_market_data_command_dispatches_range_mode(monkeypatch):
         start: str | None,
         end: str | None,
         output: str,
-        source: str | None,
-        tickers: str | None,
+        dataset: str = "prices",
+        source: str | None = None,
+        tickers: str | None = None,
+        feature_version: str = "v1",
         format: str = "csv",
     ) -> None:
         captured["date"] = date
         captured["start"] = start
         captured["end"] = end
         captured["output"] = output
+        captured["dataset"] = dataset
         captured["source"] = source
         captured["tickers"] = tickers
+        captured["feature_version"] = feature_version
         captured["format"] = format
 
     monkeypatch.setattr("app.backend.cli.main.handle_export_market_data", fake_handler, raising=False)
@@ -290,8 +300,10 @@ def test_export_market_data_command_dispatches_range_mode(monkeypatch):
         "start": "2026-05-01",
         "end": "2026-05-07",
         "output": "data/market.csv",
+        "dataset": "prices",
         "source": "yfinance",
         "tickers": "BBCA.JK,TLKM.JK",
+        "feature_version": "v1",
         "format": "parquet",
     }
 

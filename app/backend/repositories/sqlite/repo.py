@@ -864,6 +864,67 @@ def get_price_rows_for_export(
         session.close()
 
 
+def get_feature_rows_for_export(
+    date: str | None = None,
+    start: str | None = None,
+    end: str | None = None,
+    tickers: list[str] | None = None,
+    feature_version: str = "v1",
+) -> list[dict]:
+    session = SessionLocal()
+    try:
+        stmt = select(FeatureDaily).where(FeatureDaily.feature_version == feature_version)
+        if date is not None:
+            stmt = stmt.where(FeatureDaily.trade_date == date)
+        else:
+            if start is not None:
+                stmt = stmt.where(FeatureDaily.trade_date >= start)
+            if end is not None:
+                stmt = stmt.where(FeatureDaily.trade_date <= end)
+
+        if tickers:
+            stmt = stmt.where(FeatureDaily.ticker.in_(tickers))
+
+        stmt = stmt.order_by(FeatureDaily.trade_date.asc(), FeatureDaily.ticker.asc())
+        rows = session.execute(stmt).scalars().all()
+        return [
+            {
+                "trade_date": row.trade_date,
+                "ticker": row.ticker,
+                "feature_version": row.feature_version,
+                "vol_ratio": row.vol_ratio,
+                "range_pct": row.range_pct,
+                "price_action": row.price_action,
+                "is_ara_t0": row.is_ara_t0,
+                "daily_return_pct": row.daily_return_pct,
+                "vol_ratio_3d": row.vol_ratio_3d,
+                "vol_ratio_5d": row.vol_ratio_5d,
+                "vol_ratio_20": row.vol_ratio_20,
+                "cpr": row.cpr,
+                "range_volatility": row.range_volatility,
+                "bb_width": row.bb_width,
+                "is_bb_squeeze_20": row.is_bb_squeeze_20,
+                "price_vs_ma20_pct": row.price_vs_ma20_pct,
+                "price_vs_ma50_pct": row.price_vs_ma50_pct,
+                "value_traded": row.value_traded,
+                "days_since_last_ara": row.days_since_last_ara,
+                "rel_strength_5d_vs_jkse": row.rel_strength_5d_vs_jkse,
+                "float_shares": row.float_shares,
+                "shares_outstanding": row.shares_outstanding,
+                "float_ratio": row.float_ratio,
+                "consecutive_green_days": row.consecutive_green_days,
+                "rsi14": row.rsi14,
+                "rsi14_slope": row.rsi14_slope,
+                "atr5_atr20_ratio": row.atr5_atr20_ratio,
+                "dist_to_52w_high_pct": row.dist_to_52w_high_pct,
+                "is_ara_next_day": row.is_ara_next_day,
+            }
+            for row in rows
+        ]
+    finally:
+        session.close()
+
+
 def upsert_feature_daily(
     trade_date: str,
     ticker: str,
@@ -874,6 +935,26 @@ def upsert_feature_daily(
     feature_version: str = "v1",
     days_since_last_ara: int = 999,
     is_bb_squeeze_20: int = 0,
+    daily_return_pct: float = 0.0,
+    vol_ratio_3d: float = 0.0,
+    vol_ratio_5d: float = 0.0,
+    vol_ratio_20: float = 0.0,
+    cpr: float = 0.0,
+    range_volatility: float = 0.0,
+    bb_width: float = 0.0,
+    price_vs_ma20_pct: float = 0.0,
+    price_vs_ma50_pct: float = 0.0,
+    value_traded: float = 0.0,
+    rel_strength_5d_vs_jkse: float = 0.0,
+    float_shares: float = 0.0,
+    shares_outstanding: float = 0.0,
+    float_ratio: float = 0.0,
+    consecutive_green_days: int = 0,
+    rsi14: float = 0.0,
+    rsi14_slope: float = 0.0,
+    atr5_atr20_ratio: float = 0.0,
+    dist_to_52w_high_pct: float = 0.0,
+    is_ara_next_day: int = 0,
 ) -> None:
     session = SessionLocal()
     try:
@@ -897,6 +978,26 @@ def upsert_feature_daily(
                     days_since_last_ara=days_since_last_ara,
                     is_bb_squeeze_20=is_bb_squeeze_20,
                     feature_version=feature_version,
+                    daily_return_pct=daily_return_pct,
+                    vol_ratio_3d=vol_ratio_3d,
+                    vol_ratio_5d=vol_ratio_5d,
+                    vol_ratio_20=vol_ratio_20,
+                    cpr=cpr,
+                    range_volatility=range_volatility,
+                    bb_width=bb_width,
+                    price_vs_ma20_pct=price_vs_ma20_pct,
+                    price_vs_ma50_pct=price_vs_ma50_pct,
+                    value_traded=value_traded,
+                    rel_strength_5d_vs_jkse=rel_strength_5d_vs_jkse,
+                    float_shares=float_shares,
+                    shares_outstanding=shares_outstanding,
+                    float_ratio=float_ratio,
+                    consecutive_green_days=consecutive_green_days,
+                    rsi14=rsi14,
+                    rsi14_slope=rsi14_slope,
+                    atr5_atr20_ratio=atr5_atr20_ratio,
+                    dist_to_52w_high_pct=dist_to_52w_high_pct,
+                    is_ara_next_day=is_ara_next_day,
                 )
             )
         else:
@@ -906,6 +1007,26 @@ def upsert_feature_daily(
             existing.is_ara_t0 = is_ara_t0
             existing.days_since_last_ara = days_since_last_ara
             existing.is_bb_squeeze_20 = is_bb_squeeze_20
+            existing.daily_return_pct = daily_return_pct
+            existing.vol_ratio_3d = vol_ratio_3d
+            existing.vol_ratio_5d = vol_ratio_5d
+            existing.vol_ratio_20 = vol_ratio_20
+            existing.cpr = cpr
+            existing.range_volatility = range_volatility
+            existing.bb_width = bb_width
+            existing.price_vs_ma20_pct = price_vs_ma20_pct
+            existing.price_vs_ma50_pct = price_vs_ma50_pct
+            existing.value_traded = value_traded
+            existing.rel_strength_5d_vs_jkse = rel_strength_5d_vs_jkse
+            existing.float_shares = float_shares
+            existing.shares_outstanding = shares_outstanding
+            existing.float_ratio = float_ratio
+            existing.consecutive_green_days = consecutive_green_days
+            existing.rsi14 = rsi14
+            existing.rsi14_slope = rsi14_slope
+            existing.atr5_atr20_ratio = atr5_atr20_ratio
+            existing.dist_to_52w_high_pct = dist_to_52w_high_pct
+            existing.is_ara_next_day = is_ara_next_day
 
         session.commit()
     finally:
@@ -932,6 +1053,26 @@ def get_feature_rows_by_date(trade_date: str, feature_version: str = "v1") -> li
                 "is_ara_t0": row.is_ara_t0,
                 "days_since_last_ara": row.days_since_last_ara,
                 "is_bb_squeeze_20": row.is_bb_squeeze_20,
+                "daily_return_pct": row.daily_return_pct,
+                "vol_ratio_3d": row.vol_ratio_3d,
+                "vol_ratio_5d": row.vol_ratio_5d,
+                "vol_ratio_20": row.vol_ratio_20,
+                "cpr": row.cpr,
+                "range_volatility": row.range_volatility,
+                "bb_width": row.bb_width,
+                "price_vs_ma20_pct": row.price_vs_ma20_pct,
+                "price_vs_ma50_pct": row.price_vs_ma50_pct,
+                "value_traded": row.value_traded,
+                "rel_strength_5d_vs_jkse": row.rel_strength_5d_vs_jkse,
+                "float_shares": row.float_shares,
+                "shares_outstanding": row.shares_outstanding,
+                "float_ratio": row.float_ratio,
+                "consecutive_green_days": row.consecutive_green_days,
+                "rsi14": row.rsi14,
+                "rsi14_slope": row.rsi14_slope,
+                "atr5_atr20_ratio": row.atr5_atr20_ratio,
+                "dist_to_52w_high_pct": row.dist_to_52w_high_pct,
+                "is_ara_next_day": row.is_ara_next_day,
             }
             for row in rows
         ]

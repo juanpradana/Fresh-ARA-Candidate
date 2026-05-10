@@ -61,6 +61,26 @@ def _ensure_features_daily_columns(bind_engine: Engine) -> None:
     required_columns = {
         "days_since_last_ara": "INTEGER NOT NULL DEFAULT 999",
         "is_bb_squeeze_20": "INTEGER NOT NULL DEFAULT 0",
+        "daily_return_pct": "REAL NOT NULL DEFAULT 0",
+        "vol_ratio_3d": "REAL NOT NULL DEFAULT 0",
+        "vol_ratio_5d": "REAL NOT NULL DEFAULT 0",
+        "vol_ratio_20": "REAL NOT NULL DEFAULT 0",
+        "cpr": "REAL NOT NULL DEFAULT 0",
+        "range_volatility": "REAL NOT NULL DEFAULT 0",
+        "bb_width": "REAL NOT NULL DEFAULT 0",
+        "price_vs_ma20_pct": "REAL NOT NULL DEFAULT 0",
+        "price_vs_ma50_pct": "REAL NOT NULL DEFAULT 0",
+        "value_traded": "REAL NOT NULL DEFAULT 0",
+        "rel_strength_5d_vs_jkse": "REAL NOT NULL DEFAULT 0",
+        "float_shares": "REAL NOT NULL DEFAULT 0",
+        "shares_outstanding": "REAL NOT NULL DEFAULT 0",
+        "float_ratio": "REAL NOT NULL DEFAULT 0",
+        "consecutive_green_days": "INTEGER NOT NULL DEFAULT 0",
+        "rsi14": "REAL NOT NULL DEFAULT 0",
+        "rsi14_slope": "REAL NOT NULL DEFAULT 0",
+        "atr5_atr20_ratio": "REAL NOT NULL DEFAULT 0",
+        "dist_to_52w_high_pct": "REAL NOT NULL DEFAULT 0",
+        "is_ara_next_day": "INTEGER NOT NULL DEFAULT 0",
     }
 
     with bind_engine.begin() as connection:

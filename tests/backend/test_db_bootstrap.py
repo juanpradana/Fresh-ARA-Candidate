@@ -83,6 +83,72 @@ def test_screening_results_model_has_prd_columns(tmp_path, monkeypatch):
         session.close()
 
 
+def test_features_daily_model_has_rich_feature_columns(tmp_path, monkeypatch):
+    monkeypatch.setenv("APP_DB_PATH", str(tmp_path / "test.sqlite"))
+    init_db()
+    session = SessionLocal()
+    try:
+        from app.backend.repositories.sqlite.models import FeatureDaily
+
+        session.add(
+            FeatureDaily(
+                trade_date="2026-05-09",
+                ticker="BBCA.JK",
+                vol_ratio=1.0,
+                range_pct=0.7,
+                price_action=0.4,
+                is_ara_t0=0,
+                days_since_last_ara=7,
+                is_bb_squeeze_20=1,
+                feature_version="v2",
+                daily_return_pct=2.3,
+                vol_ratio_3d=1.2,
+                vol_ratio_5d=1.1,
+                vol_ratio_20=0.9,
+                cpr=0.8,
+                range_volatility=1.5,
+                bb_width=0.12,
+                price_vs_ma20_pct=1.7,
+                price_vs_ma50_pct=2.1,
+                value_traded=1500000000.0,
+                rel_strength_5d_vs_jkse=0.9,
+                float_shares=40000000000.0,
+                shares_outstanding=60000000000.0,
+                float_ratio=0.6667,
+                consecutive_green_days=4,
+                rsi14=55.0,
+                rsi14_slope=3.0,
+                atr5_atr20_ratio=0.5,
+                dist_to_52w_high_pct=-15.0,
+                is_ara_next_day=0,
+            )
+        )
+        session.commit()
+        row = session.execute(select(FeatureDaily).where(FeatureDaily.ticker == "BBCA.JK")).scalar_one()
+        assert row.daily_return_pct == 2.3
+        assert row.vol_ratio_3d == 1.2
+        assert row.vol_ratio_5d == 1.1
+        assert row.vol_ratio_20 == 0.9
+        assert row.cpr == 0.8
+        assert row.range_volatility == 1.5
+        assert row.bb_width == 0.12
+        assert row.price_vs_ma20_pct == 1.7
+        assert row.price_vs_ma50_pct == 2.1
+        assert row.value_traded == 1500000000.0
+        assert row.rel_strength_5d_vs_jkse == 0.9
+        assert row.float_shares == 40000000000.0
+        assert row.shares_outstanding == 60000000000.0
+        assert row.float_ratio == 0.6667
+        assert row.consecutive_green_days == 4
+        assert row.rsi14 == 55.0
+        assert row.rsi14_slope == 3.0
+        assert row.atr5_atr20_ratio == 0.5
+        assert row.dist_to_52w_high_pct == -15.0
+        assert row.is_ara_next_day == 0
+    finally:
+        session.close()
+
+
 def test_screening_presets_seeded_in_db(tmp_path, monkeypatch):
     monkeypatch.setenv("APP_DB_PATH", str(tmp_path / "test.sqlite"))
     init_db()
