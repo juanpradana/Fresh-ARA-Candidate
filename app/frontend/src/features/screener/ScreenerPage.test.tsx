@@ -48,6 +48,12 @@ function mockApiResponses() {
       } as Response;
     }
 
+    if (url.includes("/api/v1/meta/screen-date-range")) {
+      return {
+        json: async () => ({ data: { min_screen_date: "2026-01-01", max_screen_date: "2026-05-07" } }),
+      } as Response;
+    }
+
     if (url.includes("/api/v1/meta/job-runs")) {
       return {
         json: async () => ({
@@ -239,7 +245,9 @@ test("loads default preset and screen date from metadata", async () => {
   render(<ScreenerPage />);
 
   expect(await screen.findByDisplayValue("balanced")).toBeInTheDocument();
-  expect(screen.getByDisplayValue("2026-05-07")).toBeInTheDocument();
+  expect(screen.getByLabelText("Screen Date")).toHaveValue("2026-05-07");
+  expect(screen.getByLabelText("Backtest Start")).toHaveValue("2026-01-01");
+  expect(screen.getByLabelText("Backtest End")).toHaveValue("2026-05-07");
 });
 
 test("shows data freshness indicator", async () => {
@@ -512,6 +520,12 @@ test("loads detail and history when selecting ticker", async () => {
       } as Response;
     }
 
+    if (url.includes("/api/v1/meta/screen-date-range")) {
+      return {
+        json: async () => ({ data: { min_screen_date: "2026-01-01", max_screen_date: "2026-05-07" } }),
+      } as Response;
+    }
+
     if (url.includes("/api/v1/meta/job-runs")) {
       return {
         json: async () => ({ data: [] }),
@@ -536,7 +550,7 @@ test("loads detail and history when selecting ticker", async () => {
 
   await waitFor(() => {
     expect(calls.some((url) => url.includes("/api/v1/screener/BBRI.JK?screen_date=2026-05-07&preset=balanced"))).toBe(true);
-    expect(calls.some((url) => url.includes("/api/v1/screener/BBRI.JK/history?start=2026-05-01&end=2026-05-31&preset=balanced"))).toBe(true);
+    expect(calls.some((url) => url.includes("/api/v1/screener/BBRI.JK/history?start=2026-01-01&end=2026-05-07&preset=balanced"))).toBe(true);
   });
 });
 
@@ -593,6 +607,12 @@ test("applies selected-row glow and dims non-selected rows", async () => {
       } as Response;
     }
 
+    if (url.includes("/api/v1/meta/screen-date-range")) {
+      return {
+        json: async () => ({ data: { min_screen_date: "2026-01-01", max_screen_date: "2026-05-07" } }),
+      } as Response;
+    }
+
     if (url.includes("/api/v1/meta/job-runs")) {
       return {
         json: async () => ({ data: [] }),
@@ -613,7 +633,7 @@ test("applies selected-row glow and dims non-selected rows", async () => {
 
   await waitFor(() => {
     expect(calls.some((url) => url.includes("/api/v1/screener/BBRI.JK?screen_date=2026-05-07&preset=balanced"))).toBe(true);
-    expect(calls.some((url) => url.includes("/api/v1/screener/BBRI.JK/history?start=2026-05-01&end=2026-05-31&preset=balanced"))).toBe(true);
+    expect(calls.some((url) => url.includes("/api/v1/screener/BBRI.JK/history?start=2026-01-01&end=2026-05-07&preset=balanced"))).toBe(true);
   });
 
   expect(selectedRow.className).toContain("shadow-row-glow");
@@ -717,6 +737,12 @@ test("shows inline detail panel with selected ticker and score", async () => {
       } as Response;
     }
 
+    if (url.includes("/api/v1/meta/screen-date-range")) {
+      return {
+        json: async () => ({ data: { min_screen_date: "2026-01-01", max_screen_date: "2026-05-07" } }),
+      } as Response;
+    }
+
     if (url.includes("/api/v1/meta/job-runs")) {
       return {
         json: async () => ({ data: [] }),
@@ -804,6 +830,12 @@ test("keeps shell interactive during delayed requests", async () => {
             warning: null,
           },
         }),
+      } as Response;
+    }
+
+    if (url.includes("/api/v1/meta/screen-date-range")) {
+      return {
+        json: async () => ({ data: { min_screen_date: "2026-01-01", max_screen_date: "2026-05-07" } }),
       } as Response;
     }
 

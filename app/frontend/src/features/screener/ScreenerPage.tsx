@@ -8,6 +8,7 @@ import {
   getPresets,
   getRecentAlerts,
   getRecentJobRuns,
+  getScreenDateRange,
   getScreener,
   getScreenerCsvExportUrl,
   getScreenerXlsxExportUrl,
@@ -78,16 +79,18 @@ export function ScreenerPage() {
   };
 
   useEffect(() => {
-    Promise.all([getLatestScreenDate(), getPresets(), getDataFreshness()]).then(([latestDate, presetRows, freshness]) => {
+    Promise.all([getLatestScreenDate(), getPresets(), getDataFreshness(), getScreenDateRange()]).then(([latestDate, presetRows, freshness, range]) => {
       const defaultPreset = presetRows.find((item) => item.preset_name === "balanced")?.preset_name
         ?? presetRows[0]?.preset_name
         ?? "balanced";
       const defaultDate = latestDate ?? "2026-05-06";
+      const defaultStart = range.min_screen_date ?? defaultDate;
+      const defaultEnd = range.max_screen_date ?? defaultDate;
       const nextFilters = {
         screenDate: defaultDate,
         preset: defaultPreset,
-        start: "2026-05-01",
-        end: "2026-05-31",
+        start: defaultStart,
+        end: defaultEnd,
       };
       setPresets(presetRows);
       setFilters(nextFilters);

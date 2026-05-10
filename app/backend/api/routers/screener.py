@@ -14,6 +14,7 @@ from app.backend.repositories.sqlite.repo import (
     get_kpi_summary,
     get_latest_screen_date,
     get_recent_job_runs,
+    get_screen_date_range,
     get_screener_csv_rows,
     get_screener_detail,
     get_screener_history,
@@ -86,6 +87,16 @@ def presets() -> dict:
     init_db()
     return {
         "data": get_default_presets(),
+        "meta": {},
+        "error": None,
+    }
+
+
+@router.get("/meta/screen-date-range")
+def screen_date_range() -> dict:
+    init_db()
+    return {
+        "data": get_screen_date_range(),
         "meta": {},
         "error": None,
     }

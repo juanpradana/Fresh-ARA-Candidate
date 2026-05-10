@@ -113,6 +113,23 @@ def get_latest_screen_date() -> str | None:
         session.close()
 
 
+def get_screen_date_range() -> dict[str, str | None]:
+    session = SessionLocal()
+    try:
+        row = session.execute(
+            select(
+                func.min(ScreeningResult.screen_date),
+                func.max(ScreeningResult.screen_date),
+            )
+        ).one()
+        return {
+            "min_screen_date": row[0],
+            "max_screen_date": row[1],
+        }
+    finally:
+        session.close()
+
+
 def get_screener_total(screen_date: str | None = None, preset: str = "balanced") -> int:
     session = SessionLocal()
     try:

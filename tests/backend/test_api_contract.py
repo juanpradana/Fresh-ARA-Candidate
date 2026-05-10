@@ -223,6 +223,14 @@ def test_meta_presets_returns_default_presets():
     assert {"conservative", "balanced", "aggressive"}.issubset(names)
 
 
+def test_meta_screen_date_range_returns_min_and_max_dates():
+    res = client.get("/api/v1/meta/screen-date-range")
+    assert res.status_code == 200
+    body = res.json()
+    assert "min_screen_date" in body["data"]
+    assert "max_screen_date" in body["data"]
+
+
 def test_analytics_distribution_returns_summary():
     res = client.get("/api/v1/analytics/distribution?screen_date=2026-05-06&preset=balanced")
     assert res.status_code == 200

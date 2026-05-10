@@ -35,6 +35,11 @@ export type DataFreshnessMeta = {
   warning: string | null;
 };
 
+export type ScreenDateRangeMeta = {
+  min_screen_date: string | null;
+  max_screen_date: string | null;
+};
+
 export type ScreenerDetail = {
   ticker: string;
   score?: number;
@@ -184,6 +189,23 @@ export async function getPresets(): Promise<PresetMeta[]> {
     return Array.isArray(json?.data) ? json.data : [];
   } catch {
     return [];
+  }
+}
+
+export async function getScreenDateRange(): Promise<ScreenDateRangeMeta> {
+  try {
+    const res = await fetch("/api/v1/meta/screen-date-range");
+    const json = await res.json();
+    const data = json?.data;
+    return {
+      min_screen_date: typeof data?.min_screen_date === "string" ? data.min_screen_date : null,
+      max_screen_date: typeof data?.max_screen_date === "string" ? data.max_screen_date : null,
+    };
+  } catch {
+    return {
+      min_screen_date: null,
+      max_screen_date: null,
+    };
   }
 }
 
