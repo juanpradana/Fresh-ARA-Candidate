@@ -45,14 +45,24 @@ def test_update_market_command_dispatches(monkeypatch):
 def test_run_screening_command_dispatches(monkeypatch):
     captured: dict[str, object] = {}
 
-    def fake_handler(date: str, preset: str) -> None:
+    def fake_handler(date: str, preset: str, feature_version: str = "v1") -> None:
         captured["date"] = date
         captured["preset"] = preset
+        captured["feature_version"] = feature_version
 
     monkeypatch.setattr("app.backend.cli.main.handle_run_screening", fake_handler, raising=False)
     monkeypatch.setattr(
         "sys.argv",
-        ["cli", "run-screening", "--date", "2026-05-07", "--preset", "aggressive"],
+        [
+            "cli",
+            "run-screening",
+            "--date",
+            "2026-05-07",
+            "--preset",
+            "aggressive",
+            "--feature-version",
+            "v2",
+        ],
     )
 
     cli_main()
@@ -60,7 +70,242 @@ def test_run_screening_command_dispatches(monkeypatch):
     assert captured == {
         "date": "2026-05-07",
         "preset": "aggressive",
+        "feature_version": "v2",
     }
+
+
+def test_compute_features_command_dispatches_date_mode(monkeypatch):
+    captured: dict[str, object] = {}
+
+    def fake_handler(date: str, feature_version: str = "v1") -> None:
+        captured["date"] = date
+        captured["feature_version"] = feature_version
+
+    monkeypatch.setattr("app.backend.cli.main.handle_compute_features", fake_handler, raising=False)
+    monkeypatch.setattr(
+        "sys.argv",
+        ["cli", "compute-features", "--date", "2026-05-07", "--feature-version", "v2"],
+    )
+
+    cli_main()
+
+    assert captured == {
+        "date": "2026-05-07",
+        "feature_version": "v2",
+    }
+
+
+def test_compute_features_command_dispatches_range_mode(monkeypatch):
+    captured: dict[str, object] = {}
+
+    def fake_handler(start: str, end: str, feature_version: str = "v1") -> None:
+        captured["start"] = start
+        captured["end"] = end
+        captured["feature_version"] = feature_version
+
+    monkeypatch.setattr("app.backend.cli.main.handle_compute_features_range", fake_handler, raising=False)
+    monkeypatch.setattr(
+        "sys.argv",
+        [
+            "cli",
+            "compute-features",
+            "--start",
+            "2026-05-01",
+            "--end",
+            "2026-05-07",
+            "--feature-version",
+            "v2",
+        ],
+    )
+
+    cli_main()
+
+    assert captured == {
+        "start": "2026-05-01",
+        "end": "2026-05-07",
+        "feature_version": "v2",
+    }
+
+
+def test_compute_features_rejects_mixed_date_and_range(monkeypatch):
+    monkeypatch.setattr(
+        "sys.argv",
+        [
+            "cli",
+            "compute-features",
+            "--date",
+            "2026-05-07",
+            "--start",
+            "2026-05-01",
+            "--end",
+            "2026-05-07",
+        ],
+    )
+
+    with pytest.raises(SystemExit) as exc:
+        cli_main()
+
+    assert exc.value.code == 2
+
+
+def test_run_screening_command_dispatches_range_mode(monkeypatch):
+    captured: dict[str, object] = {}
+
+    def fake_handler(start: str, end: str, preset: str = "balanced", feature_version: str = "v1") -> None:
+        captured["start"] = start
+        captured["end"] = end
+        captured["preset"] = preset
+        captured["feature_version"] = feature_version
+
+    monkeypatch.setattr("app.backend.cli.main.handle_run_screening_range", fake_handler, raising=False)
+    monkeypatch.setattr(
+        "sys.argv",
+        [
+            "cli",
+            "run-screening",
+            "--start",
+            "2026-05-01",
+            "--end",
+            "2026-05-07",
+            "--preset",
+            "aggressive",
+            "--feature-version",
+            "v2",
+        ],
+    )
+
+    cli_main()
+
+    assert captured == {
+        "start": "2026-05-01",
+        "end": "2026-05-07",
+        "preset": "aggressive",
+        "feature_version": "v2",
+    }
+
+
+def test_run_screening_rejects_date_without_range_pair(monkeypatch):
+    monkeypatch.setattr(
+        "sys.argv",
+        ["cli", "run-screening", "--start", "2026-05-01", "--preset", "balanced"],
+    )
+
+    with pytest.raises(SystemExit) as exc:
+        cli_main()
+
+    assert exc.value.code == 2
+
+
+def test_export_market_data_command_dispatches_date_mode(monkeypatch):
+    captured: dict[str, object] = {}
+
+    def fake_handler(
+        date: str | None,
+        start: str | None,
+        end: str | None,
+        output: str,
+        source: str | None,
+        tickers: str | None,
+        format: str = "csv",
+    ) -> None:
+        captured["date"] = date
+        captured["start"] = start
+        captured["end"] = end
+        captured["output"] = output
+        captured["source"] = source
+        captured["tickers"] = tickers
+        captured["format"] = format
+
+    monkeypatch.setattr("app.backend.cli.main.handle_export_market_data", fake_handler, raising=False)
+    monkeypatch.setattr(
+        "sys.argv",
+        [
+            "cli",
+            "export-market-data",
+            "--date",
+            "2026-05-07",
+            "--output",
+            "data/market.csv",
+        ],
+    )
+
+    cli_main()
+
+    assert captured == {
+        "date": "2026-05-07",
+        "start": None,
+        "end": None,
+        "output": "data/market.csv",
+        "source": None,
+        "tickers": None,
+        "format": "csv",
+    }
+
+
+def test_export_market_data_command_dispatches_range_mode(monkeypatch):
+    captured: dict[str, object] = {}
+
+    def fake_handler(
+        date: str | None,
+        start: str | None,
+        end: str | None,
+        output: str,
+        source: str | None,
+        tickers: str | None,
+        format: str = "csv",
+    ) -> None:
+        captured["date"] = date
+        captured["start"] = start
+        captured["end"] = end
+        captured["output"] = output
+        captured["source"] = source
+        captured["tickers"] = tickers
+        captured["format"] = format
+
+    monkeypatch.setattr("app.backend.cli.main.handle_export_market_data", fake_handler, raising=False)
+    monkeypatch.setattr(
+        "sys.argv",
+        [
+            "cli",
+            "export-market-data",
+            "--start",
+            "2026-05-01",
+            "--end",
+            "2026-05-07",
+            "--output",
+            "data/market.csv",
+            "--source",
+            "yfinance",
+            "--tickers",
+            "BBCA.JK,TLKM.JK",
+            "--format",
+            "parquet",
+        ],
+    )
+
+    cli_main()
+
+    assert captured == {
+        "date": None,
+        "start": "2026-05-01",
+        "end": "2026-05-07",
+        "output": "data/market.csv",
+        "source": "yfinance",
+        "tickers": "BBCA.JK,TLKM.JK",
+        "format": "parquet",
+    }
+
+
+def test_export_market_data_rejects_missing_date_mode(monkeypatch):
+    monkeypatch.setattr(
+        "sys.argv",
+        ["cli", "export-market-data", "--output", "data/market.csv"],
+    )
+
+    with pytest.raises(SystemExit) as exc:
+        cli_main()
+
+    assert exc.value.code == 2
 
 
 def test_schedule_screening_command_dispatches(monkeypatch):

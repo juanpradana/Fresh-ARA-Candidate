@@ -821,6 +821,49 @@ def get_price_rows_by_date(trade_date: str) -> list[dict]:
         session.close()
 
 
+def get_price_rows_for_export(
+    date: str | None = None,
+    start: str | None = None,
+    end: str | None = None,
+    source: str | None = None,
+    tickers: list[str] | None = None,
+) -> list[dict]:
+    session = SessionLocal()
+    try:
+        stmt = select(PriceDaily)
+        if date is not None:
+            stmt = stmt.where(PriceDaily.trade_date == date)
+        else:
+            if start is not None:
+                stmt = stmt.where(PriceDaily.trade_date >= start)
+            if end is not None:
+                stmt = stmt.where(PriceDaily.trade_date <= end)
+
+        if source is not None:
+            stmt = stmt.where(PriceDaily.source == source)
+
+        if tickers:
+            stmt = stmt.where(PriceDaily.ticker.in_(tickers))
+
+        stmt = stmt.order_by(PriceDaily.trade_date.asc(), PriceDaily.ticker.asc())
+        rows = session.execute(stmt).scalars().all()
+        return [
+            {
+                "trade_date": row.trade_date,
+                "ticker": row.ticker,
+                "open": row.open,
+                "high": row.high,
+                "low": row.low,
+                "close": row.close,
+                "volume": row.volume,
+                "source": row.source,
+            }
+            for row in rows
+        ]
+    finally:
+        session.close()
+
+
 def upsert_feature_daily(
     trade_date: str,
     ticker: str,

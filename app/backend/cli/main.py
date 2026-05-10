@@ -4,8 +4,9 @@ import sys
 from datetime import datetime
 
 from app.backend.cli.commands.backfill_market import handle_backfill_market
-from app.backend.cli.commands.compute_features import handle_compute_features
-from app.backend.cli.commands.run_screening import handle_run_screening
+from app.backend.cli.commands.compute_features import handle_compute_features, handle_compute_features_range
+from app.backend.cli.commands.export_market_data import handle_export_market_data
+from app.backend.cli.commands.run_screening import handle_run_screening, handle_run_screening_range
 from app.backend.cli.commands.schedule_screening import handle_schedule_screening
 from app.backend.cli.commands.update_market import handle_update_market
 from app.backend.core.db import init_db
@@ -198,12 +199,17 @@ def main() -> None:
     backfill_market_parser.add_argument("--batch-size", type=int, default=50)
 
     compute_features_parser = subparsers.add_parser("compute-features")
-    compute_features_parser.add_argument("--date", required=True)
+    compute_features_parser.add_argument("--date")
+    compute_features_parser.add_argument("--start")
+    compute_features_parser.add_argument("--end")
     compute_features_parser.add_argument("--feature-version", default="v1")
 
     run_screening_parser = subparsers.add_parser("run-screening")
-    run_screening_parser.add_argument("--date", required=True)
+    run_screening_parser.add_argument("--date")
+    run_screening_parser.add_argument("--start")
+    run_screening_parser.add_argument("--end")
     run_screening_parser.add_argument("--preset", default="balanced")
+    run_screening_parser.add_argument("--feature-version", default="v1")
 
     run_daily_parser = subparsers.add_parser("run-daily")
     run_daily_parser.add_argument("--date", required=True)
@@ -221,6 +227,15 @@ def main() -> None:
     daily_smoke_parser.add_argument("--qps", type=float, default=2.0)
     daily_smoke_parser.add_argument("--universe-mode", default="external_live")
 
+    export_market_parser = subparsers.add_parser("export-market-data")
+    export_market_parser.add_argument("--date")
+    export_market_parser.add_argument("--start")
+    export_market_parser.add_argument("--end")
+    export_market_parser.add_argument("--output", required=True)
+    export_market_parser.add_argument("--source")
+    export_market_parser.add_argument("--tickers")
+    export_market_parser.add_argument("--format", choices=["csv", "parquet"], default="csv")
+
     args = parser.parse_args()
 
     if args.command == "update-market":
@@ -236,11 +251,47 @@ def main() -> None:
         return
 
     if args.command == "compute-features":
-        handle_compute_features(args.date, args.feature_version)
-        return
+        has_date = args.date is not None
+        has_range = args.start is not None or args.end is not None
+        if has_date and has_range:
+            parser.error("compute-features: use either --date OR --start/--end")
+        if has_date:
+            handle_compute_features(args.date, args.feature_version)
+            return
+        if args.start is not None and args.end is not None:
+            handle_compute_features_range(args.start, args.end, args.feature_version)
+            return
+        parser.error("compute-features: provide --date or both --start and --end")
 
     if args.command == "run-screening":
-        handle_run_screening(args.date, args.preset)
+        has_date = args.date is not None
+        has_range = args.start is not None or args.end is not None
+        if has_date and has_range:
+            parser.error("run-screening: use either --date OR --start/--end")
+        if has_date:
+            handle_run_screening(args.date, args.preset, args.feature_version)
+            return
+        if args.start is not None and args.end is not None:
+            handle_run_screening_range(args.start, args.end, args.preset, args.feature_version)
+            return
+        parser.error("run-screening: provide --date or both --start and --end")
+
+    if args.command == "export-market-data":
+        has_date = args.date is not None
+        has_range = args.start is not None or args.end is not None
+        if has_date and has_range:
+            parser.error("export-market-data: use either --date OR --start/--end")
+        if not has_date and not (args.start is not None and args.end is not None):
+            parser.error("export-market-data: provide --date or both --start and --end")
+        handle_export_market_data(
+            date=args.date,
+            start=args.start,
+            end=args.end,
+            output=args.output,
+            source=args.source,
+            tickers=args.tickers,
+            format=args.format,
+        )
         return
 
     if args.command == "run-daily":

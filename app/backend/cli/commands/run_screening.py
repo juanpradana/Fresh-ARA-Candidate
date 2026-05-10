@@ -1,3 +1,5 @@
+from datetime import datetime, timedelta
+
 from app.backend.core.db import init_db
 from app.backend.repositories.sqlite.repo import get_default_presets, get_feature_rows_by_date, upsert_screening_result
 from app.backend.services.scoring.service import score_candidate
@@ -50,3 +52,15 @@ def handle_run_screening(date: str, preset: str = "balanced", feature_version: s
             category="ideal" if passed else "candidate",
             reason_json=None,
         )
+
+
+def handle_run_screening_range(start: str, end: str, preset: str = "balanced", feature_version: str = "v1") -> None:
+    current = datetime.strptime(start, "%Y-%m-%d")
+    end_date = datetime.strptime(end, "%Y-%m-%d")
+
+    if current > end_date:
+        raise ValueError("start must be less than or equal to end")
+
+    while current <= end_date:
+        handle_run_screening(current.strftime("%Y-%m-%d"), preset, feature_version)
+        current += timedelta(days=1)
