@@ -123,6 +123,11 @@ def test_ticker_detail_and_history_exist():
     assert "pass_price_action" in detail_body["data"]
     assert "pass_is_ara_t0" in detail_body["data"]
     assert "days_since_last_ara" in detail_body["data"]
+    assert "consecutive_green_days" in detail_body["data"]
+    assert "rsi14" in detail_body["data"]
+    assert "rsi14_slope" in detail_body["data"]
+    assert "atr5_atr20_ratio" in detail_body["data"]
+    assert "dist_to_52w_high_pct" in detail_body["data"]
     assert "score_price_action" in detail_body["data"]
 
     history = client.get("/api/v1/screener/BBCA.JK/history?start=2026-05-01&end=2026-05-31&preset=balanced")
@@ -140,6 +145,11 @@ def test_ticker_detail_and_history_exist():
         assert "pass_price_action" in first
         assert "pass_is_ara_t0" in first
         assert "days_since_last_ara" in first
+        assert "consecutive_green_days" in first
+        assert "rsi14" in first
+        assert "rsi14_slope" in first
+        assert "atr5_atr20_ratio" in first
+        assert "dist_to_52w_high_pct" in first
         assert "score_price_action" in first
 
 

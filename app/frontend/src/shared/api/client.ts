@@ -50,6 +50,11 @@ export type ScreenerDetail = {
   pass_price_action?: number;
   pass_is_ara_t0?: number;
   days_since_last_ara?: number;
+  consecutive_green_days?: number;
+  rsi14?: number;
+  rsi14_slope?: number;
+  atr5_atr20_ratio?: number;
+  dist_to_52w_high_pct?: number;
   score_price_action?: number;
   reason_json?: string | null;
 } | null;
@@ -60,6 +65,11 @@ export type ScreenerHistoryRow = {
   pass_count?: number;
   category?: string;
   days_since_last_ara?: number;
+  consecutive_green_days?: number;
+  rsi14?: number;
+  rsi14_slope?: number;
+  atr5_atr20_ratio?: number;
+  dist_to_52w_high_pct?: number;
   score_price_action?: number;
 };
 

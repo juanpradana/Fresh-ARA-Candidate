@@ -75,8 +75,12 @@ python -m app.backend.cli.main run-daily --date YYYY-MM-DD --preset balanced --u
 ```bash
 python -m app.backend.cli.main update-market --date YYYY-MM-DD --batch-size 50 --qps 2 --universe-mode external_live
 python -m app.backend.cli.main backfill-market --start YYYY-MM-DD --end YYYY-MM-DD --qps 2 --batch-size 50
-python -m app.backend.cli.main compute-features --date YYYY-MM-DD --feature-version v1
-python -m app.backend.cli.main run-screening --date YYYY-MM-DD --preset balanced
+python -m app.backend.cli.main compute-features --date YYYY-MM-DD --feature-version v2
+python -m app.backend.cli.main compute-features --start YYYY-MM-DD --end YYYY-MM-DD --feature-version v2
+python -m app.backend.cli.main run-screening --date YYYY-MM-DD --preset balanced --feature-version v2
+python -m app.backend.cli.main run-screening --start YYYY-MM-DD --end YYYY-MM-DD --preset balanced --feature-version v2
+python -m app.backend.cli.main export-market-data --date YYYY-MM-DD --dataset features --feature-version v2 --output data/features.csv --format csv
+python -m app.backend.cli.main export-market-data --start YYYY-MM-DD --end YYYY-MM-DD --dataset features --feature-version v2 --output data/features.parquet --format parquet
 python -m app.backend.cli.main run-daily --date YYYY-MM-DD --preset balanced --universe-mode external_live
 python -m app.backend.cli.main daily-smoke --date YYYY-MM-DD --batch-size 50 --qps 2 --universe-mode external_live
 python -m app.backend.cli.main schedule-screening --timezone Asia/Jakarta
@@ -265,6 +269,7 @@ Base path: `/api/v1`
 - `vol_ratio` menggunakan basis `avg_volume_5d` bila tersedia.
 - Fresh filter aktif: `days_since_last_ara >= 5`.
 - Price action menggunakan tiered scoring (`1.0 / 0.8 / 0.6 / 0.0`).
+- Mode `rich_v1` menambahkan sinyal lanjutan: `consecutive_green_days`, `rsi14`, `rsi14_slope`, `atr5_atr20_ratio`, `dist_to_52w_high_pct` (selain fitur teknikal kaya sebelumnya).
 - Backtest endpoint menyediakan metrik tambahan: `hit_rate_1d`, `hit_rate_3d`, `avg_score_hit`, `avg_score_miss`, `distribution_by_pass_count`.
 
 ## CLI Playbook (By Scenario)

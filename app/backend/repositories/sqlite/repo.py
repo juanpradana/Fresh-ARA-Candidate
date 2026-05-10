@@ -1,6 +1,6 @@
 from sqlalchemy import and_, func, select
 
-from statistics import mean
+from statistics import mean, pstdev
 
 from app.backend.core.db import SessionLocal
 from app.backend.repositories.sqlite.models import AlertEvent, FeatureDaily, JobRun, KpiDailySnapshot, PriceDaily, ScreeningPreset, ScreeningResult, Ticker, Watchlist
@@ -193,6 +193,12 @@ def get_screener_detail(ticker: str, screen_date: str | None, preset: str = "bal
         ) else 0
         pass_is_ara_t0 = 1 if is_ara_t0 == 0 else 0
 
+        consecutive_green_days = feature_row.consecutive_green_days if feature_row is not None else None
+        rsi14 = feature_row.rsi14 if feature_row is not None else None
+        rsi14_slope = feature_row.rsi14_slope if feature_row is not None else None
+        atr5_atr20_ratio = feature_row.atr5_atr20_ratio if feature_row is not None else None
+        dist_to_52w_high_pct = feature_row.dist_to_52w_high_pct if feature_row is not None else None
+
         return {
             "screen_date": row.screen_date,
             "ticker": row.ticker,
@@ -205,6 +211,11 @@ def get_screener_detail(ticker: str, screen_date: str | None, preset: str = "bal
             "price_action": price_action,
             "is_ara_t0": is_ara_t0,
             "days_since_last_ara": days_since_last_ara,
+            "consecutive_green_days": consecutive_green_days,
+            "rsi14": rsi14,
+            "rsi14_slope": rsi14_slope,
+            "atr5_atr20_ratio": atr5_atr20_ratio,
+            "dist_to_52w_high_pct": dist_to_52w_high_pct,
             "score_price_action": score_price_action_tier(float(price_action)) if price_action is not None else 0.0,
             "pass_vol_ratio": pass_vol_ratio,
             "pass_range_pct": pass_range_pct,
@@ -255,6 +266,11 @@ def get_screener_history(ticker: str, start: str, end: str, preset: str = "balan
             price_action = feature_row.price_action if feature_row is not None else None
             is_ara_t0 = feature_row.is_ara_t0 if feature_row is not None else None
             days_since_last_ara = feature_row.days_since_last_ara if feature_row is not None else None
+            consecutive_green_days = feature_row.consecutive_green_days if feature_row is not None else None
+            rsi14 = feature_row.rsi14 if feature_row is not None else None
+            rsi14_slope = feature_row.rsi14_slope if feature_row is not None else None
+            atr5_atr20_ratio = feature_row.atr5_atr20_ratio if feature_row is not None else None
+            dist_to_52w_high_pct = feature_row.dist_to_52w_high_pct if feature_row is not None else None
 
             pass_vol_ratio = 1 if (
                 vol_ratio is not None and preset_row["vol_ratio_min"] <= vol_ratio <= preset_row["vol_ratio_max"]
@@ -280,6 +296,11 @@ def get_screener_history(ticker: str, start: str, end: str, preset: str = "balan
                     "price_action": price_action,
                     "is_ara_t0": is_ara_t0,
                     "days_since_last_ara": days_since_last_ara,
+                    "consecutive_green_days": consecutive_green_days,
+                    "rsi14": rsi14,
+                    "rsi14_slope": rsi14_slope,
+                    "atr5_atr20_ratio": atr5_atr20_ratio,
+                    "dist_to_52w_high_pct": dist_to_52w_high_pct,
                     "score_price_action": score_price_action_tier(float(price_action)) if price_action is not None else 0.0,
                     "pass_vol_ratio": pass_vol_ratio,
                     "pass_range_pct": pass_range_pct,
@@ -796,27 +817,202 @@ def upsert_price_daily(
         session.close()
 
 
+def _pct_change(current: float, previous: float) -> float:
+    if previous == 0:
+        return 0.0
+    return (current / previous - 1.0) * 100.0
+
+
+def _compute_rsi14(closes: list[float]) -> float:
+    if len(closes) < 15:
+        return 50.0
+
+    gains: list[float] = []
+    losses: list[float] = []
+    for index in range(len(closes) - 14, len(closes)):
+        delta = closes[index] - closes[index - 1]
+        gains.append(max(delta, 0.0))
+        losses.append(max(-delta, 0.0))
+
+    avg_gain = sum(gains) / 14.0
+    avg_loss = sum(losses) / 14.0
+
+    if avg_loss == 0.0:
+        return 100.0 if avg_gain > 0.0 else 50.0
+
+    rs = avg_gain / avg_loss
+    return 100.0 - (100.0 / (1.0 + rs))
+
+
+def _true_range(current: PriceDaily, prev_close: float) -> float:
+    high_low = float(current.high) - float(current.low)
+    high_prev = abs(float(current.high) - prev_close)
+    low_prev = abs(float(current.low) - prev_close)
+    return max(high_low, high_prev, low_prev)
+
+
+def _is_ara_from_closes(current_close: float, prev_close: float) -> int:
+    return 1 if _pct_change(current_close, prev_close) >= 9.5 else 0
+
+
 def get_price_rows_by_date(trade_date: str) -> list[dict]:
     session = SessionLocal()
     try:
-        rows = session.execute(
+        current_rows = session.execute(
             select(PriceDaily)
             .where(PriceDaily.trade_date == trade_date)
             .order_by(PriceDaily.ticker.asc())
         ).scalars().all()
-        return [
-            {
-                "ticker": row.ticker,
-                "open": row.open,
-                "high": row.high,
-                "low": row.low,
-                "close": row.close,
-                "volume": row.volume,
-                "prev_volume": row.volume,
-                "prev_close": row.close,
-            }
-            for row in rows
-        ]
+
+        if not current_rows:
+            return []
+
+        tickers = sorted({row.ticker for row in current_rows})
+
+        history_rows = session.execute(
+            select(PriceDaily)
+            .where(
+                PriceDaily.ticker.in_(tickers),
+                PriceDaily.trade_date <= trade_date,
+            )
+            .order_by(PriceDaily.ticker.asc(), PriceDaily.trade_date.asc())
+        ).scalars().all()
+
+        history_by_ticker: dict[str, list[PriceDaily]] = {}
+        for row in history_rows:
+            history_by_ticker.setdefault(row.ticker, []).append(row)
+
+        next_rows = session.execute(
+            select(PriceDaily)
+            .where(
+                PriceDaily.ticker.in_(tickers),
+                PriceDaily.trade_date > trade_date,
+            )
+            .order_by(PriceDaily.ticker.asc(), PriceDaily.trade_date.asc())
+        ).scalars().all()
+
+        next_by_ticker: dict[str, PriceDaily] = {}
+        for row in next_rows:
+            if row.ticker not in next_by_ticker:
+                next_by_ticker[row.ticker] = row
+
+        jkse_history = session.execute(
+            select(PriceDaily)
+            .where(
+                PriceDaily.ticker == "^JKSE",
+                PriceDaily.trade_date <= trade_date,
+            )
+            .order_by(PriceDaily.trade_date.asc())
+        ).scalars().all()
+        jkse_closes = [float(row.close) for row in jkse_history]
+        jkse_return_5d_pct = 0.0
+        if len(jkse_closes) >= 6:
+            jkse_return_5d_pct = _pct_change(jkse_closes[-1], jkse_closes[-6])
+
+        enriched_rows: list[dict] = []
+
+        for current in current_rows:
+            ticker_history = history_by_ticker.get(current.ticker, [])
+            closes = [float(item.close) for item in ticker_history]
+            volumes = [float(item.volume) for item in ticker_history]
+
+            prev_close = closes[-2] if len(closes) >= 2 else float(current.close)
+            prev_volume = volumes[-2] if len(volumes) >= 2 else float(current.volume)
+
+            avg_volume_3d = sum(volumes[-3:]) / min(len(volumes), 3)
+            avg_volume_5d = sum(volumes[-5:]) / min(len(volumes), 5)
+            avg_volume_20d = sum(volumes[-20:]) / min(len(volumes), 20)
+
+            ma20 = sum(closes[-20:]) / min(len(closes), 20)
+            ma50 = sum(closes[-50:]) / min(len(closes), 50)
+            high_52w = max(closes[-252:]) if closes else float(current.close)
+
+            ticker_return_5d_pct = 0.0
+            if len(closes) >= 6:
+                ticker_return_5d_pct = _pct_change(closes[-1], closes[-6])
+
+            recent_ranges = [
+                _pct_change(float(item.high), float(item.low))
+                for item in ticker_history[-20:]
+                if float(item.low) != 0.0
+            ]
+            range_volatility = pstdev(recent_ranges) if len(recent_ranges) >= 2 else 0.0
+
+            bb_width = 0.0
+            if len(closes) >= 20:
+                window = closes[-20:]
+                ma = sum(window) / 20.0
+                std = pstdev(window)
+                upper = ma + (2.0 * std)
+                lower = ma - (2.0 * std)
+                bb_width = (upper - lower) / ma if ma else 0.0
+
+            tr_values: list[float] = []
+            for index in range(1, len(ticker_history)):
+                tr_values.append(
+                    _true_range(ticker_history[index], float(ticker_history[index - 1].close))
+                )
+            atr5 = sum(tr_values[-5:]) / min(len(tr_values), 5) if tr_values else 0.0
+            atr20 = sum(tr_values[-20:]) / min(len(tr_values), 20) if tr_values else 0.0
+
+            rsi14 = _compute_rsi14(closes)
+            rsi14_prev = _compute_rsi14(closes[:-1]) if len(closes) >= 16 else rsi14
+
+            close_prev_values = {}
+            for offset in range(1, 8):
+                key = f"close_prev_{offset}"
+                close_prev_values[key] = closes[-(offset + 1)] if len(closes) >= (offset + 1) else None
+
+            is_ara_t0 = _is_ara_from_closes(float(current.close), prev_close)
+
+            days_since_last_ara = 999
+            if len(closes) >= 2:
+                days = 0
+                for idx in range(len(closes) - 2, 0, -1):
+                    days += 1
+                    day_is_ara = _is_ara_from_closes(closes[idx], closes[idx - 1])
+                    if day_is_ara == 1:
+                        days_since_last_ara = days
+                        break
+
+            next_row = next_by_ticker.get(current.ticker)
+            is_ara_next_day = 0
+            if next_row is not None:
+                is_ara_next_day = _is_ara_from_closes(float(next_row.close), float(current.close))
+
+            enriched_rows.append(
+                {
+                    "ticker": current.ticker,
+                    "open": float(current.open),
+                    "high": float(current.high),
+                    "low": float(current.low),
+                    "close": float(current.close),
+                    "volume": float(current.volume),
+                    "prev_volume": float(prev_volume),
+                    "prev_close": float(prev_close),
+                    "avg_volume_3d": float(avg_volume_3d),
+                    "avg_volume_5d": float(avg_volume_5d),
+                    "avg_volume_20d": float(avg_volume_20d),
+                    "ma20": float(ma20),
+                    "ma50": float(ma50),
+                    "ticker_return_5d_pct": float(ticker_return_5d_pct),
+                    "jkse_return_5d_pct": float(jkse_return_5d_pct),
+                    "range_volatility": float(range_volatility),
+                    "bb_width": float(bb_width),
+                    "is_bb_squeeze_20": 1 if bb_width > 0.0 and bb_width < 0.10 else 0,
+                    "high_52w": float(high_52w),
+                    "atr5": float(atr5),
+                    "atr20": float(atr20),
+                    "rsi14": float(rsi14),
+                    "rsi14_prev": float(rsi14_prev),
+                    "is_ara_t0": int(is_ara_t0),
+                    "days_since_last_ara": int(days_since_last_ara),
+                    "is_ara_next_day": int(is_ara_next_day),
+                    **close_prev_values,
+                }
+            )
+
+        return enriched_rows
     finally:
         session.close()
 

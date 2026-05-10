@@ -30,8 +30,8 @@ python -m app.backend.cli.main run-daily --date YYYY-MM-DD --preset balanced --q
 ### 3) Bandingkan preset
 
 ```bash
-python -m app.backend.cli.main run-screening --date YYYY-MM-DD --preset conservative
-python -m app.backend.cli.main run-screening --date YYYY-MM-DD --preset aggressive
+python -m app.backend.cli.main run-screening --date YYYY-MM-DD --preset conservative --feature-version v2
+python -m app.backend.cli.main run-screening --date YYYY-MM-DD --preset aggressive --feature-version v2
 ```
 
 ### 4) Recovery jika data kosong/tidak complete
@@ -45,8 +45,9 @@ python -m app.backend.cli.main run-daily --date YYYY-MM-DD --preset balanced --q
 ## C. Parameter penting (ringkas)
 
 - `--date`: tanggal target proses (`YYYY-MM-DD`).
-- `--start` / `--end`: rentang tanggal untuk backfill.
+- `--start` / `--end`: rentang tanggal untuk backfill/range mode compute-screening/export.
 - `--preset`: preset screening (`conservative`, `balanced`, `aggressive`).
+- `--feature-version`: versi fitur (`v1` legacy, `v2` rich fitur + indikator lanjutan).
 - `--qps`: request per detik ke sumber market (atur ke bawah jika throttling/error meningkat).
 - `--batch-size`: jumlah ticker per batch proses (lebih kecil = lebih stabil, lebih lambat).
 - `--universe-mode`: mode universe ticker (`external_live` direkomendasikan untuk cakupan luas).

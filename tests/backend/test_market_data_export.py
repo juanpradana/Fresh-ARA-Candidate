@@ -263,6 +263,49 @@ def test_handle_export_market_data_writes_features_csv(monkeypatch, tmp_path):
     assert "2026-05-01,BBCA.JK,v2,1.0,0.6,0.2,0,1.2,1.1,1.0,0.9,100.0,0.4,0.2,1,0.5,0.7,1000.0,8,0.3,50.0,100.0,0.5,4,55.0,3.0,0.5,-8.0,0" in content
 
 
+def test_get_price_rows_by_date_includes_historical_context(monkeypatch):
+    engine = create_engine("sqlite:///:memory:", future=True)
+    Base.metadata.create_all(bind=engine)
+    test_session_local = sessionmaker(bind=engine, autocommit=False, autoflush=False)
+    monkeypatch.setattr(repo, "SessionLocal", test_session_local, raising=False)
+
+    session = test_session_local()
+    try:
+        session.add_all(
+            [
+                PriceDaily(trade_date="2026-05-01", ticker="TEST.JK", open=100.0, high=102.0, low=99.0, close=100.0, volume=100.0, source="yfinance"),
+                PriceDaily(trade_date="2026-05-02", ticker="TEST.JK", open=100.0, high=111.0, low=99.0, close=110.0, volume=120.0, source="yfinance"),
+                PriceDaily(trade_date="2026-05-03", ticker="TEST.JK", open=109.0, high=111.0, low=104.0, close=105.0, volume=130.0, source="yfinance"),
+                PriceDaily(trade_date="2026-05-04", ticker="TEST.JK", open=106.0, high=117.0, low=105.0, close=116.0, volume=140.0, source="yfinance"),
+                PriceDaily(trade_date="2026-04-28", ticker="^JKSE", open=7000.0, high=7050.0, low=6950.0, close=7000.0, volume=1000.0, source="yfinance"),
+                PriceDaily(trade_date="2026-04-29", ticker="^JKSE", open=7100.0, high=7150.0, low=7050.0, close=7100.0, volume=1000.0, source="yfinance"),
+                PriceDaily(trade_date="2026-04-30", ticker="^JKSE", open=7200.0, high=7250.0, low=7150.0, close=7200.0, volume=1000.0, source="yfinance"),
+                PriceDaily(trade_date="2026-05-01", ticker="^JKSE", open=7300.0, high=7350.0, low=7250.0, close=7300.0, volume=1000.0, source="yfinance"),
+                PriceDaily(trade_date="2026-05-02", ticker="^JKSE", open=7400.0, high=7450.0, low=7350.0, close=7400.0, volume=1000.0, source="yfinance"),
+                PriceDaily(trade_date="2026-05-03", ticker="^JKSE", open=7500.0, high=7550.0, low=7450.0, close=7500.0, volume=1000.0, source="yfinance"),
+            ]
+        )
+        session.commit()
+    finally:
+        session.close()
+
+    rows = repo.get_price_rows_by_date("2026-05-03")
+    row = next(item for item in rows if item["ticker"] == "TEST.JK")
+
+    assert row["prev_close"] == 110.0
+    assert row["prev_volume"] == 120.0
+    assert round(row["avg_volume_3d"], 4) == round((100.0 + 120.0 + 130.0) / 3.0, 4)
+    assert round(row["avg_volume_5d"], 4) == round((100.0 + 120.0 + 130.0) / 3.0, 4)
+    assert row["close_prev_1"] == 110.0
+    assert row["close_prev_2"] == 100.0
+    assert row["close_prev_3"] is None
+    assert row["high_52w"] == 110.0
+    assert row["is_ara_t0"] == 0
+    assert row["days_since_last_ara"] == 1
+    assert row["is_ara_next_day"] == 1
+    assert row["jkse_return_5d_pct"] > 0.0
+
+
 def test_handle_export_market_data_raises_when_pyarrow_missing(monkeypatch, tmp_path):
     monkeypatch.setattr("app.backend.cli.commands.export_market_data.init_db", lambda: None, raising=False)
     monkeypatch.setattr(
