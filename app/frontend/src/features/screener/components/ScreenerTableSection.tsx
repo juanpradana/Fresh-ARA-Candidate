@@ -36,9 +36,12 @@ export function ScreenerTableSection({
                 }
               }}
             >
-              <div className="flex items-center justify-between gap-3">
-                <span>{row.ticker}</span>
+              <div className="grid grid-cols-[56px_1fr_80px_80px_110px] items-center gap-2">
                 <span className="text-xs text-zinc-400">#{typeof row.rank_num === "number" ? row.rank_num : "-"}</span>
+                <span>{row.ticker}</span>
+                <span className="text-right text-zinc-300">{typeof row.score === "number" ? row.score.toFixed(2) : "-"}</span>
+                <span className="text-right text-zinc-300">{typeof row.pass_count === "number" ? row.pass_count : "-"}</span>
+                <span className="text-right text-zinc-300">{typeof row.category === "string" ? row.category : "-"}</span>
               </div>
             </li>
           );

@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, test, vi } from "vitest";
 import { ScreenerPage } from "./ScreenerPage";
 
@@ -89,7 +89,12 @@ function mockApiResponses() {
     }
 
     return {
-      json: async () => ({ data: [{ ticker: "BBRI.JK" }, { ticker: "BBCA.JK" }] }),
+      json: async () => ({
+        data: [
+          { ticker: "BBRI.JK", rank_num: 1, score: 0.91, pass_count: 4, category: "ideal" },
+          { ticker: "BBCA.JK", rank_num: 2, score: 0.83, pass_count: 3, category: "candidate" },
+        ],
+      }),
     } as Response;
   });
 }
@@ -117,6 +122,8 @@ test("shows screener title", async () => {
   render(<ScreenerPage />);
   expect(screen.getByText("Fresh ARA Screener")).toBeInTheDocument();
   expect(await screen.findByTestId("screener-row-BBRI.JK")).toBeInTheDocument();
+  expect(screen.getByText("0.91")).toBeInTheDocument();
+  expect(screen.getAllByText("ideal").length).toBeGreaterThan(0);
 });
 
 test("renders rows from api", async () => {
@@ -632,7 +639,7 @@ test("shows summary metrics strip", async () => {
 
   expect(await screen.findByTestId("summary-strip")).toBeInTheDocument();
   expect(screen.getByText("Total candidates: 2")).toBeInTheDocument();
-  expect(screen.getByText("Ideal count: 0")).toBeInTheDocument();
+  expect(screen.getByText("Ideal count: 1")).toBeInTheDocument();
 });
 
 test("applies terminal-style classes to summary strip", async () => {
@@ -733,9 +740,10 @@ test("shows inline detail panel with selected ticker and score", async () => {
 
   fireEvent.click(await screen.findByTestId("screener-row-BBRI.JK"));
 
-  expect(await screen.findByTestId("inline-detail-panel")).toBeInTheDocument();
+  const panel = await screen.findByTestId("inline-detail-panel");
+  expect(panel).toBeInTheDocument();
   expect(screen.getByText("Selected: BBRI.JK")).toBeInTheDocument();
-  expect(screen.getByText("Score: 0.90")).toBeInTheDocument();
+  expect(within(panel).getByText("Score: 0.90")).toBeInTheDocument();
   expect(screen.getByText("pass_vol_ratio: 1")).toBeInTheDocument();
   expect(screen.getByText("pass_range_pct: 1")).toBeInTheDocument();
 });

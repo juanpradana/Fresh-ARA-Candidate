@@ -24,6 +24,11 @@ export function ScreenerCardListSection({
               <span>{row.ticker}</span>
               <span className="text-xs text-zinc-400">#{typeof row.rank_num === "number" ? row.rank_num : "-"}</span>
             </div>
+            <div className="mt-1 grid grid-cols-3 gap-2 text-xs text-zinc-300">
+              <span>Score: {typeof row.score === "number" ? row.score.toFixed(2) : "-"}</span>
+              <span>Pass: {typeof row.pass_count === "number" ? row.pass_count : "-"}</span>
+              <span className="text-right">{typeof row.category === "string" ? row.category : "-"}</span>
+            </div>
           </article>
         );
       })}
